@@ -1,0 +1,22 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ===== 基础模型权重（体积大，应从 HuggingFace 下载，不上传）=====
+# 保留 model/README.md 等说明文件，忽略权重与分词器大文件
+model/*.safetensors
+model/*.bin
+model/*.gguf
+model/*.pt
+model/*.pth
+
+# ===== 训练输出 / 检查点（含优化器状态，体积大）=====
+qwen-lora-finetuned/checkpoint-*/
+
+# 如不希望上传微调后的适配器权重，取消下面注释
+# qwen-lora-finetuned/adapter_model.safetensors
+
+# ===== 自动生成的示例数据 =====
+data.jsonl

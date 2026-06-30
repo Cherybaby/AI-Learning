@@ -1,0 +1,20 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ===== 编辑器配置（按需保留，含本地路径可忽略）=====
+.vscode/
+
+# ===== MATLAB 临时/输出文件 =====
+*.asv          # MATLAB 自动备份
+*.mat          # 计算结果数据（可由脚本重新生成）
+slprj/
+*.slxc
+
+# ===== 通用输出 =====
+*.png
+*.jpg
+*.fig
+*.csv
