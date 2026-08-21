@@ -1,0 +1,224 @@
+{
+  "sample_geo_id": 607,
+  "input": {
+    "hp_dim": 33,
+    "hp_values_mm": [
+      4285.462,
+      -423.285,
+      1059.995,
+      4368.824,
+      -724.488999999999,
+      1049.324,
+      4607.61,
+      -340.934,
+      1111.971,
+      4449.43499999999,
+      -708.351,
+      1135.084,
+      4345.58,
+      -435.339,
+      958.812,
+      4282.71,
+      -712.961,
+      926.373,
+      4220.829,
+      -428.405,
+      842.568999999999,
+      4372.241,
+      -718.326999999999,
+      780.188,
+      4680.451,
+      -295.473,
+      862.958,
+      4552.707,
+      -744.108999999999,
+      890.691,
+      4421.553,
+      -825.1,
+      972.284
+    ],
+    "stroke_T": 101,
+    "stroke_range_mm": [
+      -50.0,
+      50.0
+    ]
+  },
+  "train_forward_demo": {
+    "note": "复现一次前向+损失计算（不更新参数），展示训练时的数据口径",
+    "mse_standardized_space": 0.027629878371953964
+  },
+  "infer_result": {
+    "per_quantity_R2": {
+      "toe": 0.9724270664142592,
+      "camber": 0.9928428991524574,
+      "caster": -22.24804797351059,
+      "caster_arm": 0.06816111404800751,
+      "scrub_radius": 0.6177998866614682,
+      "tire_con_point_x": 0.9670553658518201,
+      "tire_con_point_y": 0.9579938350181282,
+      "tire_con_point_z": 0.9975205844408621
+    },
+    "per_quantity_MAE": {
+      "toe": 0.15574099744564995,
+      "camber": 0.0350352239206369,
+      "caster": 0.17559763705784082,
+      "caster_arm": 0.46394167468912056,
+      "scrub_radius": 3.0855144276497017,
+      "tire_con_point_x": 0.608140542842049,
+      "tire_con_point_y": 0.8241396587057427,
+      "tire_con_point_z": 1.147725392358693
+    }
+  },
+  "architecture": {
+    "config": {
+      "n_hp": 33,
+      "n_out": 8,
+      "hidden": 128,
+      "n_layers": 2,
+      "n_heads": 4,
+      "n_ctx": 8,
+      "p_drop": 0.1,
+      "arch_version": "v1"
+    },
+    "total_params": 691464,
+    "layers": [
+      {
+        "stage": "Encoder",
+        "name": "encoder.0 (Linear+ReLU+Dropout)",
+        "in_dim": 33,
+        "out_dim": 128,
+        "params": 4352,
+        "desc": "33维硬点坐标 -> 128维隐向量"
+      },
+      {
+        "stage": "Encoder",
+        "name": "encoder.3 (Linear+ReLU+Dropout)",
+        "in_dim": 128,
+        "out_dim": 128,
+        "params": 16512,
+        "desc": "128维 -> 128维（第二层非线性变换）"
+      },
+      {
+        "stage": "Encoder",
+        "name": "ctx_proj (Linear)",
+        "in_dim": 128,
+        "out_dim": 1024,
+        "params": 132096,
+        "desc": "128维 -> 展开为 8 个上下文token，每个128维 (reshape成 memory: [B,8,128])"
+      },
+      {
+        "stage": "位置编码",
+        "name": "sin/cos 数值位置编码",
+        "in_dim": 1,
+        "out_dim": 64,
+        "params": 0,
+        "desc": "每个stroke标量值 -> 32个频率的sin+cos -> 64维"
+      },
+      {
+        "stage": "位置编码",
+        "name": "pe_proj (Linear)",
+        "in_dim": 64,
+        "out_dim": 128,
+        "params": 8320,
+        "desc": "64维位置编码 -> 128维（与 encoder 输出同维，可做 attention）"
+      },
+      {
+        "stage": "TransformerDecoder",
+        "name": "DecoderLayer[0]",
+        "in_dim": 128,
+        "out_dim": 128,
+        "params": 264576,
+        "desc": "Self-Attn(4头×32维, 双向无mask) -> Cross-Attn(query=stroke点, key/value=memory[8个硬点token]) -> FFN(128->512->128) [Pre-LN]"
+      },
+      {
+        "stage": "TransformerDecoder",
+        "name": "DecoderLayer[1]",
+        "in_dim": 128,
+        "out_dim": 128,
+        "params": 264576,
+        "desc": "Self-Attn(4头×32维, 双向无mask) -> Cross-Attn(query=stroke点, key/value=memory[8个硬点token]) -> FFN(128->512->128) [Pre-LN]"
+      },
+      {
+        "stage": "输出头",
+        "name": "out_proj (Linear)",
+        "in_dim": 128,
+        "out_dim": 8,
+        "params": 1032,
+        "desc": "128维 -> 8维（toe/camber/caster/caster_arm/scrub_radius/tire_con_point_x,y,z）"
+      }
+    ],
+    "target_names": [
+      "toe",
+      "camber",
+      "caster",
+      "caster_arm",
+      "scrub_radius",
+      "tire_con_point_x",
+      "tire_con_point_y",
+      "tire_con_point_z"
+    ],
+    "feat_names": [
+      "O1_x",
+      "O1_y",
+      "O1_z",
+      "O2_x",
+      "O2_y",
+      "O2_z",
+      "O3_x",
+      "O3_y",
+      "O3_z",
+      "O4_x",
+      "O4_y",
+      "O4_z",
+      "S1_x",
+      "S1_y",
+      "S1_z",
+      "S2_x",
+      "S2_y",
+      "S2_z",
+      "U1_x",
+      "U1_y",
+      "U1_z",
+      "U2_x",
+      "U2_y",
+      "U2_z",
+      "U3_x",
+      "U3_y",
+      "U3_z",
+      "U4_x",
+      "U4_y",
+      "U4_z",
+      "R0_x",
+      "R0_y",
+      "R0_z",
+      "wc_stroke"
+    ]
+  },
+  "decoder_layer_detail": {
+    "sample_geo_id": 607,
+    "layer_index_shown": 1,
+    "n_heads": 4,
+    "d_head": 32,
+    "n_ctx": 8,
+    "self_attn_weight_shape": [
+      4,
+      101,
+      101
+    ],
+    "cross_attn_weight_shape": [
+      4,
+      101,
+      8
+    ],
+    "self_attn_head_stds": [
+      0.0008136963006108999,
+      9.475008482695557e-06,
+      1.8292621462023817e-05,
+      0.00040092275594361126
+    ],
+    "self_attn_head_shown": 0,
+    "cross_attn_std": 0.0,
+    "finding": "如实发现：decoder.layers[0] 的 Self-Attn 与全部层的 Cross-Attn 在该几何样例上权重均严格均匀（std=0，即1/8或1/T），只有decoder.layers[1]（最后一层）的Self-Attn部分头（尤其head0）保留了可辨的非均匀关注模式。",
+    "manual_replay_max_abs_diff_vs_layer_call": 0.0
+  }
+}

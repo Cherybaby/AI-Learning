@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>预测 vs 真值 对照 · 测试集样本浏览</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#ffffff; --ink:#1f2733; --muted:#6b7686;
+    --line:#e6e9f0; --accent:#e0483a; --pred:#2f6bd6; --true:#f2994a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",
+      "Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px;
+  }
+  .topbar{
+    display:flex; align-items:center; gap:16px;
+    padding:10px 18px; background:var(--panel); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10;
+  }
+  .back-btn{
+    border:1px solid var(--line); background:#fff; border-radius:8px;
+    padding:6px 12px; color:var(--muted); cursor:pointer; font-size:13px;
+  }
+  .back-btn:hover{background:#eef1f7;}
+  .title{font-size:15px; font-weight:600;}
+  .spacer{flex:1;}
+  .status{font-size:12px; color:var(--muted);}
+
+  .main{max-width:1180px; margin:0 auto; padding:22px 26px 60px;}
+
+  .picker{background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:16px 20px; margin-bottom:20px;}
+  .picker label{display:block; font-size:13px; color:var(--muted); margin-bottom:10px;}
+  .picker-row{display:flex; align-items:center; gap:14px;}
+  .picker-row input[type=range]{flex:1; accent-color:var(--accent);}
+  .picker-badge{
+    min-width:34px; text-align:center; background:var(--accent); color:#fff;
+    border-radius:14px; padding:3px 10px; font-size:13px; font-weight:600;
+  }
+  .picker-meta{font-size:12px; color:var(--muted); margin-top:8px;}
+
+  h3.section{font-size:17px; font-weight:700; margin:0 0 14px;}
+  .legend{display:flex; gap:22px; align-items:center; font-size:13px; color:var(--muted);
+    margin-bottom:14px;}
+  .legend .sw{display:inline-block; width:22px; height:0; border-top:2.5px solid; margin-right:6px; vertical-align:middle;}
+  .legend .sw.pred{border-color:var(--pred);}
+  .legend .sw.true{border-color:var(--true); border-top-style:dashed;}
+
+  .charts{display:grid; grid-template-columns:repeat(4,1fr); gap:16px 18px; margin-bottom:30px;}
+  .chart{background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 8px 6px;}
+  .chart .ct{text-align:center; font-size:13px; color:#4a5568; margin:2px 0 4px; font-weight:600;}
+  .chart svg{width:100%; height:190px; display:block;}
+  @media(max-width:1100px){ .charts{grid-template-columns:repeat(2,1fr);} }
+  @media(max-width:640px){ .charts{grid-template-columns:1fr;} }
+
+  table{width:100%; border-collapse:collapse; background:#fff;
+    border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  th,td{padding:9px 14px; font-size:13px; border-bottom:1px solid var(--line);}
+  th{background:#f7f9fc; color:var(--muted); text-align:left; font-weight:600;}
+  td.value{text-align:right; font-variant-numeric:tabular-nums;}
+  tr:last-child td{border-bottom:none;}
+  .err{color:var(--accent); font-size:13px; margin:10px 0;}
+  .loading{position:fixed; inset:0; background:rgba(255,255,255,.6);
+    display:none; align-items:center; justify-content:center; font-size:15px; color:var(--muted);}
+  .loading.on{display:flex;}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <button class="back-btn" onclick="location.href='/'">← 返回</button>
+    <div class="title">模型精度详情 · 测试集预测 vs 真值 对照</div>
+    <div class="spacer"></div>
+    <div class="status" id="status">加载中…</div>
+  </div>
+
+  <div class="main">
+    <div class="picker">
+      <label>选择方案查看（测试集样本，共 <span id="totalCount">-</span> 个，拖动滑块切换）</label>
+      <div class="picker-row">
+        <input type="range" id="sampleSlider" min="0" max="0" value="0" step="1" />
+        <span class="picker-badge" id="sampleIdx">0</span>
+      </div>
+      <div class="picker-meta" id="sampleMeta"></div>
+    </div>
+
+    <div id="err" class="err"></div>
+
+    <h3 class="section" id="chartsTitle">方案 预测 vs 真值</h3>
+    <div class="legend">
+      <span><span class="sw pred"></span>预测</span>
+      <span><span class="sw true"></span>Adams真值</span>
+    </div>
+    <div class="charts" id="charts"></div>
+
+    <h3 class="section" id="maeTitle">预测误差 (MAE)</h3>
+    <table>
+      <thead><tr><th>曲线</th><th style="text-align:right">MAE</th></tr></thead>
+      <tbody id="maeBody"></tbody>
+    </table>
+
+    <h3 class="section" style="margin-top:30px;">模型精度详情（测试集整体统计）</h3>
+    <div id="metricsErr" class="err"></div>
+    <table>
+      <thead><tr>
+        <th>曲线</th><th style="text-align:right">MAE</th><th style="text-align:right">Median</th>
+        <th style="text-align:right">P90</th><th style="text-align:right">Max Error</th>
+        <th style="text-align:right">平滑度(D2)</th>
+      </tr></thead>
+      <tbody id="curveMetricsBody"></tbody>
+    </table>
+
+    <h3 class="section" style="margin-top:30px;">各曲线最差样本 (Top-5)</h3>
+    <div class="picker" style="margin-bottom:16px;">
+      <label>选择曲线</label>
+      <select id="worstCurveSelect" style="width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;"></select>
+    </div>
+    <table>
+      <thead><tr><th>Run #</th><th style="text-align:right">Per-sample MAE</th></tr></thead>
+      <tbody id="worstSamplesBody"></tbody>
+    </table>
+  </div>
+
+  <div class="loading" id="loading">加载测试样本中…</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let DATA = null;
+
+// ---------- 轻量 SVG 折线图（双线：预测实线 + 真值虚线） ----------
+function niceTicks(min, max, n = 4){
+  if (min === max){ min -= 1; max += 1; }
+  const span = max - min;
+  const raw = span / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  let step = mag;
+  if (norm >= 5) step = 5*mag; else if (norm >= 2) step = 2*mag; else step = mag;
+  const start = Math.ceil(min/step)*step;
+  const ticks = [];
+  for (let v = start; v <= max + 1e-9; v += step) ticks.push(+v.toFixed(6));
+  return ticks;
+}
+function fmtTick(v){
+  const a = Math.abs(v);
+  if (a !== 0 && (a < 0.01 || a >= 10000)) return v.toExponential(1);
+  if (a >= 100) return v.toFixed(0);
+  if (a >= 1) return v.toFixed(1);
+  return v.toFixed(2);
+}
+function fmtVal(v){
+  const a = Math.abs(v);
+  if (a >= 100) return v.toFixed(2);
+  return v.toFixed(4);
+}
+function drawDualChart(container, title, x, yPred, yTrue){
+  const W = 260, H = 190, ml = 48, mr = 10, mt = 10, mb = 30;
+  const xmin = Math.min(...x), xmax = Math.max(...x);
+  const allY = yPred.concat(yTrue);
+  let ymin = Math.min(...allY), ymax = Math.max(...allY);
+  if (ymin === ymax){ ymin -= 1; ymax += 1; }
+  const pad = (ymax - ymin) * 0.08; ymin -= pad; ymax += pad;
+  const px = v => ml + (v - xmin) / (xmax - xmin) * (W - ml - mr);
+  const py = v => mt + (1 - (v - ymin) / (ymax - ymin)) * (H - mt - mb);
+
+  const xt = niceTicks(xmin, xmax, 4), yt = niceTicks(ymin, ymax, 4);
+  let g = '';
+  yt.forEach(t => {
+    if (t < ymin || t > ymax) return;
+    const yy = py(t);
+    g += `<line x1="${ml}" y1="${yy}" x2="${W-mr}" y2="${yy}" stroke="#eef1f6" stroke-width="1"/>`;
+    g += `<text x="${ml-6}" y="${yy+3}" text-anchor="end" font-size="9" fill="#9aa4b2">${fmtTick(t)}</text>`;
+  });
+  xt.forEach(t => {
+    if (t < xmin || t > xmax) return;
+    const xx = px(t);
+    g += `<text x="${xx}" y="${H-mb+13}" text-anchor="middle" font-size="9" fill="#9aa4b2">${fmtTick(t)}</text>`;
+  });
+  g += `<line x1="${ml}" y1="${mt}" x2="${ml}" y2="${H-mb}" stroke="#c9d0da" stroke-width="1"/>`;
+  g += `<line x1="${ml}" y1="${H-mb}" x2="${W-mr}" y2="${H-mb}" stroke="#c9d0da" stroke-width="1"/>`;
+
+  const pathOf = (ys) => {
+    let d = '';
+    for (let i = 0; i < x.length; i++) d += (i ? 'L' : 'M') + px(x[i]).toFixed(1) + ' ' + py(ys[i]).toFixed(1) + ' ';
+    return d;
+  };
+  // 真值：虚线（橙色），预测：实线（蓝色）——与参考图一致的视觉顺序（先画虚线在下层）
+  g += `<path d="${pathOf(yTrue)}" fill="none" stroke="#f2994a" stroke-width="2" stroke-dasharray="6,4" stroke-linejoin="round"/>`;
+  g += `<path d="${pathOf(yPred)}" fill="none" stroke="#2f6bd6" stroke-width="2.2" stroke-linejoin="round"/>`;
+
+  const div = document.createElement('div');
+  div.className = 'chart';
+  div.innerHTML = `<div class="ct">${title}</div>`
+    + `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
+  container.appendChild(div);
+}
+
+// ---------- 渲染 ----------
+function renderSample(i){
+  const s = DATA.samples[i];
+  const names = DATA.target_names;
+  const labels = DATA.labels || {};
+
+  $('sampleIdx').textContent = i;
+  $('sampleMeta').textContent = `方案 #${i + 1} · 原始样本编号 Run#${s.sample_id} · `
+    + `平均MAE=${fmtVal(Object.values(s.mae).reduce((a,b)=>a+b,0) / names.length)}`;
+  $('chartsTitle').textContent = `方案 #${i + 1} 预测 vs 真值`;
+  $('maeTitle').textContent = `方案 #${i + 1} 预测误差 (MAE)`;
+
+  const c = $('charts'); c.innerHTML = '';
+  names.forEach(n => {
+    drawDualChart(c, labels[n] || n, s.stroke, s.pred[n], s.true[n]);
+  });
+
+  const tb = $('maeBody'); tb.innerHTML = '';
+  names.forEach(n => {
+    tb.innerHTML += `<tr><td>${labels[n] || n}</td><td class="value">${fmtVal(s.mae[n])}</td></tr>`;
+  });
+}
+
+function bindSlider(){
+  const slider = $('sampleSlider');
+  slider.addEventListener('input', () => renderSample(+slider.value));
+}
+
+async function init(){
+  $('loading').classList.add('on');
+  try{
+    const r = await fetch('/api/test_samples');
+    DATA = await r.json();
+    if (DATA.error){ $('err').textContent = '加载失败：' + DATA.error; return; }
+    const n = DATA.samples.length;
+    $('totalCount').textContent = n;
+    const slider = $('sampleSlider');
+    slider.max = Math.max(0, n - 1);
+    slider.value = 0;
+    bindSlider();
+    if (n > 0) renderSample(0);
+    $('status').textContent = `就绪 · 共 ${n} 个测试集样本`;
+  }catch(e){
+    $('err').textContent = '请求失败：' + e.message;
+    $('status').textContent = '加载失败';
+  }finally{
+    $('loading').classList.remove('on');
+  }
+  await loadMetrics();
+}
+
+// ---------- 模型精度详情 + 各曲线最差样本 Top-5 ----------
+let METRICS = null;
+
+function renderCurveMetricsTable(){
+  const tb = $('curveMetricsBody'); tb.innerHTML = '';
+  const cm = METRICS && METRICS.curve_metrics;
+  if (!cm){ tb.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">未生成（需先运行 train_nn.py 训练模型）</td></tr>'; return; }
+  const names = DATA ? DATA.target_names : Object.keys(cm);
+  const labels = DATA ? (DATA.labels || {}) : {};
+  names.forEach(n => {
+    const d = cm[n]; if (!d) return;
+    tb.innerHTML += `<tr><td>${labels[n] || n}</td>`
+      + `<td class="value">${fmtVal(d.MAE)}</td><td class="value">${fmtVal(d.Median)}</td>`
+      + `<td class="value">${fmtVal(d.P90)}</td><td class="value">${fmtVal(d.MaxError)}</td>`
+      + `<td class="value">${d.D2.toFixed(6)}</td></tr>`;
+  });
+}
+
+function renderWorstSamplesTable(curveName){
+  const tb = $('worstSamplesBody'); tb.innerHTML = '';
+  const ws = METRICS && METRICS.worst_samples;
+  if (!ws || !ws[curveName]){ tb.innerHTML = '<tr><td colspan="2" style="color:var(--muted)">未生成（需先运行 visualize_results.py 生成 results_worst_samples.json）</td></tr>'; return; }
+  ws[curveName].forEach(item => {
+    tb.innerHTML += `<tr><td>${item.sample_id}</td><td class="value">${fmtVal(item.mae)}</td></tr>`;
+  });
+}
+
+async function loadMetrics(){
+  try{
+    const r = await fetch('/api/metrics');
+    METRICS = await r.json();
+    if (METRICS.error){ $('metricsErr').textContent = '加载失败：' + METRICS.error; return; }
+    renderCurveMetricsTable();
+
+    const sel = $('worstCurveSelect'); sel.innerHTML = '';
+    const names = DATA ? DATA.target_names : Object.keys((METRICS.worst_samples) || {});
+    const labels = DATA ? (DATA.labels || {}) : {};
+    names.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n; opt.textContent = labels[n] || n;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => renderWorstSamplesTable(sel.value));
+    if (names.length) renderWorstSamplesTable(names[0]);
+  }catch(e){
+    $('metricsErr').textContent = '请求失败：' + e.message;
+  }
+}
+
+init();
+</script>
+</body>
+</html>

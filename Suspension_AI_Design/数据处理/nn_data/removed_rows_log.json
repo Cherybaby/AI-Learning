@@ -1,0 +1,411 @@
+[
+  {
+    "group_id": 2,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.55>3.0)"
+    ]
+  },
+  {
+    "group_id": 27,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.29>3.0)"
+    ]
+  },
+  {
+    "group_id": 49,
+    "reasons": [
+      "曲线跳变(量=caster_arm, ratio=132.0>6.0)",
+      "曲线幅值离群(量=tire_con_point_z, z=42.85>3.0)",
+      "设计位偏离预设(偏差=30.11°, z=42.75>3.0)"
+    ]
+  },
+  {
+    "group_id": 50,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.14>3.0)"
+    ]
+  },
+  {
+    "group_id": 55,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=4.44>3.0)"
+    ]
+  },
+  {
+    "group_id": 79,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.09>3.0)"
+    ]
+  },
+  {
+    "group_id": 92,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.54>3.0)"
+    ]
+  },
+  {
+    "group_id": 141,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.61>3.0)"
+    ]
+  },
+  {
+    "group_id": 170,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.58>3.0)"
+    ]
+  },
+  {
+    "group_id": 175,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=5.20>3.0)"
+    ]
+  },
+  {
+    "group_id": 192,
+    "reasons": [
+      "曲线跳变(量=toe, ratio=10.5>6.0)",
+      "曲线幅值离群(量=scrub_radius, z=7.00>3.0)"
+    ]
+  },
+  {
+    "group_id": 194,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.52>3.0)"
+    ]
+  },
+  {
+    "group_id": 200,
+    "reasons": [
+      "曲线跳变(量=toe, ratio=21.3>6.0)",
+      "曲线幅值离群(量=toe, z=3.76>3.0)"
+    ]
+  },
+  {
+    "group_id": 202,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.49>3.0)"
+    ]
+  },
+  {
+    "group_id": 205,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.63>3.0)"
+    ]
+  },
+  {
+    "group_id": 208,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.84>3.0)"
+    ]
+  },
+  {
+    "group_id": 235,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.59>3.0)"
+    ]
+  },
+  {
+    "group_id": 252,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.30>3.0)"
+    ]
+  },
+  {
+    "group_id": 271,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.97>3.0)"
+    ]
+  },
+  {
+    "group_id": 321,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.08>3.0)"
+    ]
+  },
+  {
+    "group_id": 327,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=6.71>3.0)"
+    ]
+  },
+  {
+    "group_id": 340,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.78>3.0)"
+    ]
+  },
+  {
+    "group_id": 349,
+    "reasons": [
+      "曲线跳变(量=tire_con_point_z, ratio=404.9>6.0)",
+      "曲线幅值离群(量=toe, z=27.37>3.0)",
+      "设计位偏离预设(偏差=8.17°, z=11.57>3.0)"
+    ]
+  },
+  {
+    "group_id": 353,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=5.55>3.0)"
+    ]
+  },
+  {
+    "group_id": 354,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=5.19>3.0)"
+    ]
+  },
+  {
+    "group_id": 372,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=5.44>3.0)"
+    ]
+  },
+  {
+    "group_id": 374,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=4.26>3.0)"
+    ]
+  },
+  {
+    "group_id": 375,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=5.45>3.0)"
+    ]
+  },
+  {
+    "group_id": 406,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.14>3.0)"
+    ]
+  },
+  {
+    "group_id": 421,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.07>3.0)"
+    ]
+  },
+  {
+    "group_id": 434,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.20>3.0)"
+    ]
+  },
+  {
+    "group_id": 437,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.12>3.0)"
+    ]
+  },
+  {
+    "group_id": 444,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=4.22>3.0)"
+    ]
+  },
+  {
+    "group_id": 451,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.09>3.0)"
+    ]
+  },
+  {
+    "group_id": 498,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.86>3.0)"
+    ]
+  },
+  {
+    "group_id": 527,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.85>3.0)"
+    ]
+  },
+  {
+    "group_id": 549,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=5.92>3.0)"
+    ]
+  },
+  {
+    "group_id": 550,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=6.96>3.0)"
+    ]
+  },
+  {
+    "group_id": 556,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=4.19>3.0)"
+    ]
+  },
+  {
+    "group_id": 566,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=4.16>3.0)"
+    ]
+  },
+  {
+    "group_id": 575,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.05>3.0)"
+    ]
+  },
+  {
+    "group_id": 579,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=7.40>3.0)"
+    ]
+  },
+  {
+    "group_id": 604,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.83>3.0)"
+    ]
+  },
+  {
+    "group_id": 647,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.81>3.0)"
+    ]
+  },
+  {
+    "group_id": 655,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.44>3.0)"
+    ]
+  },
+  {
+    "group_id": 663,
+    "reasons": [
+      "曲线跳变(量=toe, ratio=6.3>6.0)"
+    ]
+  },
+  {
+    "group_id": 665,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.25>3.0)"
+    ]
+  },
+  {
+    "group_id": 679,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.20>3.0)"
+    ]
+  },
+  {
+    "group_id": 689,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.57>3.0)"
+    ]
+  },
+  {
+    "group_id": 694,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.86>3.0)"
+    ]
+  },
+  {
+    "group_id": 721,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.17>3.0)"
+    ]
+  },
+  {
+    "group_id": 731,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.39>3.0)"
+    ]
+  },
+  {
+    "group_id": 736,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.42>3.0)"
+    ]
+  },
+  {
+    "group_id": 739,
+    "reasons": [
+      "曲线跳变(量=tire_con_point_z, ratio=13.1>6.0)",
+      "曲线幅值离群(量=scrub_radius, z=4.72>3.0)"
+    ]
+  },
+  {
+    "group_id": 755,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=5.74>3.0)"
+    ]
+  },
+  {
+    "group_id": 767,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=5.26>3.0)"
+    ]
+  },
+  {
+    "group_id": 787,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.25>3.0)"
+    ]
+  },
+  {
+    "group_id": 803,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.43>3.0)"
+    ]
+  },
+  {
+    "group_id": 823,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=4.07>3.0)"
+    ]
+  },
+  {
+    "group_id": 832,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=5.63>3.0)"
+    ]
+  },
+  {
+    "group_id": 866,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=9.48>3.0)"
+    ]
+  },
+  {
+    "group_id": 879,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.15>3.0)"
+    ]
+  },
+  {
+    "group_id": 905,
+    "reasons": [
+      "曲线幅值离群(量=caster_arm, z=3.02>3.0)"
+    ]
+  },
+  {
+    "group_id": 922,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=3.30>3.0)"
+    ]
+  },
+  {
+    "group_id": 953,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=3.48>3.0)"
+    ]
+  },
+  {
+    "group_id": 954,
+    "reasons": [
+      "曲线幅值离群(量=scrub_radius, z=6.79>3.0)"
+    ]
+  },
+  {
+    "group_id": 957,
+    "reasons": [
+      "曲线幅值离群(量=caster, z=4.56>3.0)"
+    ]
+  }
+]

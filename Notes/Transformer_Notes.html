@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transformer_Notes</title>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'], ['\\(','\\)']],
+    displayMath: [['$$','$$'], ['\\[','\\]']],
+    processEscapes: true,
+  }
+};
+</script>
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --border: #e0e0e0;
+  --code-bg: #f5f5f5;
+  --table-stripe: #fafafa;
+  --link: #1a6fb5;
+  --h1-border: #333;
+  --h2-border: #888;
+  --info-bg: #eef6fc;
+  --info-border: #b8d8f0;
+}
+body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  line-height: 1.8;
+  color: var(--fg);
+  background: var(--bg);
+}
+h1 { font-size: 1.8rem; border-bottom: 2px solid var(--h1-border); padding-bottom: 0.3em; margin-top: 1.8em; }
+h2 { font-size: 1.4rem; border-bottom: 1px solid var(--h2-border); padding-bottom: 0.2em; margin-top: 1.6em; }
+h3 { font-size: 1.15rem; margin-top: 1.4em; }
+h4 { font-size: 1rem; margin-top: 1.2em; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.92em;
+  font-family: "Fira Code", "Source Code Pro", Consolas, monospace;
+}
+pre {
+  background: var(--code-bg);
+  padding: 1em 1.2em;
+  border-radius: 6px;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.55em 0.8em;
+  text-align: left;
+}
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(even) { background: var(--table-stripe); }
+blockquote {
+  border-left: 4px solid var(--info-border);
+  background: var(--info-bg);
+  margin: 1em 0;
+  padding: 0.6em 1em;
+  color: #555;
+}
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+img { max-width: 100%; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --border: #444;
+    --code-bg: #2d2d2d;
+    --table-stripe: #252525;
+    --link: #569cd6;
+    --h1-border: #666;
+    --h2-border: #555;
+    --info-bg: #1a2a3a;
+    --info-border: #2a4a6a;
+  }
+  blockquote { color: #aaa; }
+}
+@media print {
+  body { max-width: 100%; padding: 0; font-size: 11pt; }
+  pre, blockquote { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="transformer">Transformer 架构详解：从核心概念到训练推理全流程</h1>
+<blockquote>
+<p>本文以 <strong>Seq2Seq Attention (Encoder-Decoder Transformer)</strong> 为例，系统梳理 Transformer 的各个核心模块，并以一个<strong>悬挂设计 AI 系统</strong>的实际架构图为贯穿案例，完整展示从数据输入到模型输出的训练与推理全过程。新增 <strong>Memory Token 机制详解</strong> 和 <strong>PMSM 电机控制应用案例</strong>。</p>
+</blockquote>
+<hr />
+<h2 id="_1">目录</h2>
+<ul>
+<li><a href="#一transformer-核心概念">一、Transformer 核心概念</a></li>
+<li><a href="#11-为什么需要-transformer">1.1 为什么需要 Transformer？</a></li>
+<li><a href="#12-整体架构encoder-decoder">1.2 整体架构：Encoder-Decoder</a></li>
+<li><a href="#13-self-attention">1.3 Self-Attention</a></li>
+<li><a href="#14-multi-head-attention">1.4 Multi-Head Attention</a></li>
+<li><a href="#15-位置编码-positional-encoding">1.5 位置编码 Positional Encoding</a></li>
+<li><a href="#16-前馈网络-ffn">1.6 前馈网络 FFN</a></li>
+<li><a href="#17-layernorm--残差连接">1.7 LayerNorm &amp; 残差连接</a></li>
+<li><a href="#18-masked-attention--causal-mask">1.8 Masked Attention &amp; Causal Mask</a></li>
+<li><a href="#二memory-token-机制详解">二、Memory Token 机制详解</a></li>
+<li><a href="#21-什么是-memory-token">2.1 什么是 Memory Token？</a></li>
+<li><a href="#22-memory-token-的数学描述">2.2 Memory Token 的数学描述</a></li>
+<li><a href="#23-memory-token-与其他可学习参数的区别">2.3 Memory Token 与其他可学习参数的区别</a></li>
+<li><a href="#24-memory-token-在架构图中的位置">2.4 Memory Token 在架构图中的位置</a></li>
+<li><a href="#25-memory-token-的训练与推理行为">2.5 Memory Token 的训练与推理行为</a></li>
+<li><a href="#26-memory-token-设计变体">2.6 Memory Token 设计变体</a></li>
+<li><a href="#三图中架构逐层拆解">三、图中架构逐层拆解</a></li>
+<li><a href="#四训练过程详解">四、训练过程详解</a></li>
+<li><a href="#五推理过程详解">五、推理过程详解</a></li>
+<li><a href="#六pmsm-电机控制应用案例">六、PMSM 电机控制应用案例</a></li>
+<li><a href="#61-任务定义">6.1 任务定义</a></li>
+<li><a href="#62-状态空间与控制输入">6.2 状态空间与控制输入</a></li>
+<li><a href="#63-transformer-架构设计">6.3 Transformer 架构设计</a></li>
+<li><a href="#64-memory-token-在-pmsm-中的作用">6.4 Memory Token 在 PMSM 中的作用</a></li>
+<li><a href="#65-训练数据生成">6.5 训练数据生成</a></li>
+<li><a href="#66-训练过程">6.6 训练过程</a></li>
+<li><a href="#67-推理过程在线控制">6.7 推理过程（在线控制）</a></li>
+<li><a href="#68-与-clfcbfqp-的关系">6.8 与 CLF/CBF/QP 的关系</a></li>
+<li><a href="#七常见问题-faq">七、常见问题 FAQ</a></li>
+</ul>
+<hr />
+<h2 id="transformer_1">一、Transformer 核心概念</h2>
+<h3 id="11-transformer">1.1 为什么需要 Transformer？</h3>
+<p>在 Transformer 之前，序列建模的主流是 <strong>RNN/LSTM</strong>：</p>
+<ul>
+<li>优点：天然适合序列，参数量小</li>
+<li>缺点：计算必须<strong>串行</strong>（第 <span class="arithmatex">\(t\)</span> 步依赖第 <span class="arithmatex">\(t-1\)</span> 步），长序列时梯度消失，难以并行加速</li>
+</ul>
+<p><strong>Transformer 的核心突破</strong>：用 <strong>Self-Attention</strong> 取代循环连接，让序列中任意两个位置可以直接"对话"，计算完全<strong>并行化</strong>。</p>
+<blockquote>
+<p><strong>一句话理解</strong>：RNN 是"挨个传纸条"，Transformer 是"所有人同时举手发言，按重要性加权汇总"。</p>
+</blockquote>
+<hr />
+<h3 id="12-encoder-decoder">1.2 整体架构：Encoder-Decoder</h3>
+<pre class="codehilite"><code>┌─────────────────────────────────────────────────────────────┐
+│                    Transformer (Seq2Seq)                     │
+├─────────────────────────┬───────────────────────────────────┤
+│        Encoder          │           Decoder                 │
+│   (理解输入序列)         │      (生成输出序列)                │
+├─────────────────────────┼───────────────────────────────────┤
+│  Input Embedding        │  Output Embedding (+Pos Encoding) │
+│  + [Memory Tokens]       │  + [Memory Tokens]               │
+│        ↓                │            ↓                      │
+│  ┌─────────────┐        │    ┌─────────────┐                │
+│  │ EncoderLayer│ ×N     │    │ Masked Self │                │
+│  │  - MultiHead│        │    │  Attention  │                │
+│  │  - FFN      │        │    └──────┬──────┘                │
+│  │  - Norm     │        │           ↓                       │
+│  └─────────────┘        │    ┌─────────────┐                │
+│        ↓                │    │ Encoder-    │ ←── Encoder输出  │
+│   Output: 上下文向量     │    │ Decoder Attn│                │
+│   (K, V 供Decoder查询)   │    └──────┬──────┘                │
+│                         │           ↓                       │
+│                         │    ┌─────────────┐                │
+│                         │    │     FFN     │                │
+│                         │    └──────┬──────┘                │
+│                         │           ↓                       │
+│                         │    Linear + Softmax               │
+│                         │    → 预测下一个token               │
+└─────────────────────────┴───────────────────────────────────┘
+</code></pre>
+
+<hr />
+<h3 id="13-self-attention">1.3 Self-Attention</h3>
+<p>给定输入序列 <span class="arithmatex">\(X \in \mathbb{R}^{T \times d_{model}}\)</span>，Self-Attention 的计算步骤：</p>
+<p><strong>Step 1：生成 Q, K, V</strong></p>
+<div class="arithmatex">\[Q = X W_Q, \quad K = X W_K, \quad V = X W_V\]</div>
+<p><strong>Step 2：计算注意力分数</strong></p>
+<div class="arithmatex">\[\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right) V\]</div>
+<ul>
+<li><span class="arithmatex">\(QK^T \in \mathbb{R}^{T \times T}\)</span>：每对位置之间的"相似度"</li>
+<li><span class="arithmatex">\(\sqrt{d_k}\)</span>：缩放因子，防止点积过大导致 softmax 梯度消失</li>
+<li>softmax：把相似度转成概率分布（和为1）</li>
+<li>乘 <span class="arithmatex">\(V\)</span>：按注意力权重加权求和，得到输出</li>
+</ul>
+<p><strong>展开形式</strong>：</p>
+<div class="arithmatex">\[\text{score}_{ij} = \frac{q_i \cdot k_j}{\sqrt{d_k}}, \quad \alpha_{ij} = \frac{e^{\text{score}_{ij}}}{\sum_{l} e^{\text{score}_{il}}}\]</div>
+<div class="arithmatex">\[\text{output}_i = \sum_{j=1}^{T} \alpha_{ij} v_j\]</div>
+<hr />
+<h3 id="14-multi-head-attention">1.4 Multi-Head Attention</h3>
+<p>把 <span class="arithmatex">\(d_{model}\)</span> 切成 <span class="arithmatex">\(h\)</span> 份，每份独立做 Attention：</p>
+<div class="arithmatex">\[\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, ..., \text{head}_h) W_O\]</div>
+<div class="arithmatex">\[\text{head}_i = \text{Attention}(QW_Q^{(i)}, KW_K^{(i)}, VW_V^{(i)})\]</div>
+<ul>
+<li><span class="arithmatex">\(h\)</span> = 注意力头数 (n_heads)</li>
+<li>每个头的维度 <span class="arithmatex">\(d_k = d_{model} / h\)</span></li>
+<li>不同头可以学到不同模式：有的关注局部，有的关注全局</li>
+</ul>
+<p>图中架构 <span class="arithmatex">\(d_{model}=256\)</span>, <span class="arithmatex">\(h=8\)</span>，每个头维度 <span class="arithmatex">\(256/8 = 32\)</span>。</p>
+<hr />
+<h3 id="15-positional-encoding">1.5 位置编码 Positional Encoding</h3>
+<p>Attention 本身是<strong>位置无关</strong>的。为了让模型知道"谁在什么位置"，需要注入位置信息。</p>
+<p><strong>经典 Sinusoidal 位置编码</strong>：</p>
+<div class="arithmatex">\[PE_{(pos, 2i)} = \sin\left(\frac{pos}{10000^{2i/d_{model}}}\right), \quad PE_{(pos, 2i+1)} = \cos\left(\frac{pos}{10000^{2i/d_{model}}}\right)\]</div>
+<p><strong>可学习的位置编码</strong>：直接把 <span class="arithmatex">\(T \times d_{model}\)</span> 矩阵当作参数训练。图中同时用了两种。</p>
+<hr />
+<h3 id="16-ffn">1.6 前馈网络 FFN</h3>
+<div class="arithmatex">\[\text{FFN}(x) = \text{ReLU}(x W_1 + b_1) W_2 + b_2\]</div>
+<ul>
+<li>中间层维度通常是 <span class="arithmatex">\(4 \times d_{model}\)</span></li>
+<li>对每个位置独立作用（不跨时间步交互），增加非线性表达能力</li>
+</ul>
+<hr />
+<h3 id="17-layernorm">1.7 LayerNorm &amp; 残差连接</h3>
+<div class="arithmatex">\[\text{output} = \text{LayerNorm}(x + \text{Sublayer}(x))\]</div>
+<ul>
+<li>残差连接：解决深层网络梯度消失</li>
+<li>LayerNorm：对每个样本、每个时间步独立归一化（跨特征维度）</li>
+</ul>
+<div class="arithmatex">\[\text{LayerNorm}(x) = \gamma \odot \frac{x - \mu}{\sqrt{\sigma^2 + \epsilon}} + \beta\]</div>
+<hr />
+<h3 id="18-masked-attention-causal-mask">1.8 Masked Attention &amp; Causal Mask</h3>
+<p>Decoder 中的 Self-Attention 必须 masked，防止"偷看"未来：</p>
+<div class="arithmatex">\[\text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^T + M}{\sqrt{d_k}}\right) V\]</div>
+<div class="arithmatex">\[M_{ij} = \begin{cases} 0 &amp; i \geq j \\ -\infty &amp; i &lt; j \end{cases}\]</div>
+<p><strong>Encoder-Decoder Attention</strong>（Cross Attention）：<br />
+- Q 来自 Decoder，K/V 来自 Encoder 输出<br />
+- 不需要 causal mask（Encoder 输出是完整的）</p>
+<hr />
+<h2 id="memory-token">二、Memory Token 机制详解</h2>
+<h3 id="21-memory-token">2.1 什么是 Memory Token？</h3>
+<p><strong>Memory Token</strong> 是一组<strong>可学习的参数向量</strong>，在 Self-Attention 中与真实的输入 token 一起参与注意力计算，充当模型的"外部记忆"。</p>
+<p><strong>核心思想</strong>：</p>
+<blockquote>
+<p>标准 Transformer 中，所有信息都编码在输入 token 的表示中。Memory Token 额外提供一组"记忆槽位"，模型可以在这些槽位中<strong>写入</strong>和<strong>读取</strong>信息，实现跨时间步、跨样本的信息存储。</p>
+</blockquote>
+<p><strong>类比理解</strong>：<br />
+- 普通 token = 短期记忆（当前正在看的句子）<br />
+- Memory Token = 长期记忆（笔记本上记下的关键信息，随时可以翻看）</p>
+<hr />
+<h3 id="22-memory-token">2.2 Memory Token 的数学描述</h3>
+<p>设 Memory Token 为 <span class="arithmatex">\(M \in \mathbb{R}^{N_m \times d_{model}}\)</span>，其中 <span class="arithmatex">\(N_m\)</span> 是记忆槽位数量。</p>
+<p><strong>前向传播时的操作</strong>：</p>
+<p><strong>Step 1：拼接</strong></p>
+<p>将 Memory Token 拼接到输入序列前面：</p>
+<div class="arithmatex">\[\tilde{X} = \begin{bmatrix} M \\ X \end{bmatrix} \in \mathbb{R}^{(N_m + T) \times d_{model}}\]</div>
+<ul>
+<li><span class="arithmatex">\(M\)</span>：<span class="arithmatex">\(N_m\)</span> 个 Memory Token（可学习参数，所有样本共享）</li>
+<li><span class="arithmatex">\(X\)</span>：<span class="arithmatex">\(T\)</span> 个真实输入 token</li>
+</ul>
+<p><strong>Step 2：正常参与 Self-Attention</strong></p>
+<div class="arithmatex">\[Q = \tilde{X} W_Q, \quad K = \tilde{X} W_K, \quad V = \tilde{X} W_V\]</div>
+<div class="arithmatex">\[\text{Attention} = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right) V \in \mathbb{R}^{(N_m + T) \times d_{model}}\]</div>
+<p><strong>关键</strong>：注意力矩阵现在是 <span class="arithmatex">\((N_m + T) \times (N_m + T)\)</span>，Memory Token 既作为 Query 也作为 Key/Value。</p>
+<p><strong>Step 3：分离输出</strong></p>
+<div class="arithmatex">\[\text{output} = \begin{bmatrix} M' \\ X' \end{bmatrix}\]</div>
+<ul>
+<li><span class="arithmatex">\(M'\)</span>：Memory Token 的更新表示（通常<strong>丢弃</strong>，不传递到下一层）</li>
+<li><span class="arithmatex">\(X'\)</span>：真实 token 的输出表示（传递到下一层）</li>
+</ul>
+<blockquote>
+<p><strong>注意</strong>：有些实现中 Memory Token 也会传递到下一层，取决于架构设计。</p>
+</blockquote>
+<p><strong>数值示例</strong>（以 <span class="arithmatex">\(N_m = 4\)</span>, <span class="arithmatex">\(T = 101\)</span>, <span class="arithmatex">\(d_{model} = 256\)</span> 为例）：</p>
+<pre class="codehilite"><code>输入:
+  Memory Tokens M: [4, 256]     ← 可学习参数，所有样本共享
+  Input Tokens  X: [101, 256]   ← 真实输入
+
+拼接后:
+  X_tilde: [105, 256]
+
+Self-Attention:
+  Q, K, V: [105, 256] each
+  Attention Matrix: [105, 105]   ← 105×105 的注意力矩阵
+  Output: [105, 256]             ← Memory tokens的输出在前4行
+
+分离:
+  M' = output[:4, :]   → 丢弃（或传递到下一层）
+  X' = output[4:, :]   → 传递给下一层
+</code></pre>
+
+<hr />
+<h3 id="23-memory-token">2.3 Memory Token 与其他可学习参数的区别</h3>
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>参数</th>
+<th>作用方式</th>
+<th>类比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>权重矩阵 <span class="arithmatex">\(W_Q, W_K, W_V\)</span></strong></td>
+<td>全局共享</td>
+<td>线性投影，对每个 token 相同</td>
+<td>"大脑的处理规则"</td>
+</tr>
+<tr>
+<td><strong>位置编码 (Positional)</strong></td>
+<td>固定/可学习</td>
+<td>与输入相加，标识位置</td>
+<td>"座位号"</td>
+</tr>
+<tr>
+<td><strong>Memory Token</strong></td>
+<td>可学习</td>
+<td>作为额外 token 参与注意力</td>
+<td>"便签纸上的笔记"</td>
+</tr>
+<tr>
+<td><strong>pos_query (图中的)</strong></td>
+<td>可学习 embedding</td>
+<td>给每个位置一个身份</td>
+<td>"工牌"</td>
+</tr>
+</tbody>
+</table>
+<p><strong>核心区别</strong>：<br />
+- 权重矩阵是"处理规则"，对所有输入做相同的变换<br />
+- 位置编码只是"标签"，不参与信息交换<br />
+- <strong>Memory Token 是"内容"，它会与其他 token 双向交换信息</strong>——既可以被查询，也可以主动查询</p>
+<hr />
+<h3 id="24-memory-token">2.4 Memory Token 在架构图中的位置</h3>
+<p>在图中架构里，Memory Token 可能在以下位置：</p>
+<pre class="codehilite"><code>┌──────────────────────────────────────────────────────────────┐
+│                    架构中的 Memory Token                     │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  [Memory Tokens]  ← N_m 个可学习向量 [N_m, 256]              │
+│       ↓                                                      │
+│  与 Decoder 输入拼接:                                         │
+│       X_tilde = [Memory; Decoder_Input]                      │
+│       ↓                                                      │
+│  ┌─────────────┐                                            │
+│  │ DecoderLayer│ ×4                                         │
+│  │  Self-Attn  │  ← Memory Token 参与注意力                  │
+│  │  Cross-Attn │  ← Memory Token 也可查询 Encoder            │
+│  │  FFN        │                                             │
+│  └─────────────┘                                            │
+│       ↓                                                      │
+│  分离: 只取真实 token 的输出                                  │
+│       ↓                                                      │
+│  out_proj → 8 条曲线                                         │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<p><strong>Memory Token 的参数量</strong>：</p>
+<div class="arithmatex">\[\text{params}_{\text{memory}} = N_m \times d_{model}\]</div>
+<p>例如 <span class="arithmatex">\(N_m = 16\)</span>, <span class="arithmatex">\(d_{model} = 256\)</span>：<span class="arithmatex">\(16 \times 256 = 4096\)</span> 个参数。</p>
+<hr />
+<h3 id="25-memory-token">2.5 Memory Token 的训练与推理行为</h3>
+<h4 id="_2">训练时</h4>
+<pre class="codehilite"><code>每个训练样本:
+  1. 取出共享的 Memory Tokens M (同一组参数)
+  2. M 与当前样本的输入拼接
+  3. 前向传播 → 计算损失
+  4. 反向传播 → 梯度流过 M → 更新 M
+
+关键: Memory Token 在所有样本间共享，但每个样本的注意力会
+      &quot;读取&quot;和&quot;写入&quot;不同的信息到 Memory Token
+</code></pre>
+
+<p><strong>梯度更新</strong>：Memory Token 的梯度来自<strong>所有训练样本</strong>的损失，模型会学习到"最有用的通用记忆"。</p>
+<h4 id="_3">推理时</h4>
+<pre class="codehilite"><code>每个推理样本:
+  1. 使用训练好的 Memory Tokens M (固定不变)
+  2. M 与推理输入拼接
+  3. 前向传播 → 输出
+
+关键: Memory Token 在推理时是固定的，作为&quot;预训练的知识库&quot;
+      被模型查询
+</code></pre>
+
+<blockquote>
+<p><strong>推理时 Memory Token 不更新</strong>。它存储的是训练过程中学到的通用知识。</p>
+</blockquote>
+<hr />
+<h3 id="26-memory-token">2.6 Memory Token 设计变体</h3>
+<h4 id="1-memoryper-layer-memory">变体 1：每层独立 Memory（Per-Layer Memory）</h4>
+<p>每层 Decoder 有自己独立的 Memory Token：</p>
+<div class="arithmatex">\[M^{(l)} \in \mathbb{R}^{N_m \times d_{model}}, \quad l = 1, 2, ..., L\]</div>
+<ul>
+<li>优点：不同层可以存储不同抽象级别的信息</li>
+<li>缺点：参数量增加 <span class="arithmatex">\(L\)</span> 倍</li>
+</ul>
+<h4 id="2-memory-cross-layer-memory">变体 2：共享 Memory 跨层传递（Cross-Layer Memory）</h4>
+<p>同一组 Memory Token 在所有层之间传递和更新：</p>
+<pre class="codehilite"><code>Layer 0: M_0 = M (初始)
+Layer 1: M_1 = SelfAttn([M_0; X])[memory_part]
+Layer 2: M_2 = SelfAttn([M_1; X])[memory_part]
+...
+</code></pre>
+
+<ul>
+<li>优点：参数少，信息逐层精炼</li>
+<li>缺点：需要处理梯度路径</li>
+</ul>
+<h4 id="3readwrite-heads">变体 3：读写分离（Read/Write Heads）</h4>
+<p>设计专门的"读头"和"写头"：<br />
+- <strong>读</strong>：Memory Token 作为 Key/Value，输入 token 作为 Query<br />
+- <strong>写</strong>：输入 token 作为 Key/Value，Memory Token 作为 Query</p>
+<pre class="codehilite"><code class="language-python"># 读操作: 从记忆中检索
+Q_read = X @ W_Q_read
+K_mem = M @ W_K_mem
+V_mem = M @ W_V_mem
+X_new = softmax(Q_read @ K_mem.T / sqrt(d_k)) @ V_mem
+
+# 写操作: 更新记忆
+Q_write = M @ W_Q_write
+K_input = X @ W_K_input
+V_input = X @ W_V_input
+M_new = softmax(Q_write @ K_input.T / sqrt(d_k)) @ V_input
+</code></pre>
+
+<h4 id="4external-memory-bank">变体 4：外置记忆库（External Memory Bank）</h4>
+<p>更大规模的 Memory，带寻址机制（类似 Neural Turing Machine）：</p>
+<div class="arithmatex">\[\text{read}_i = \sum_j w_{ij}^{r} M_j, \quad M_j \leftarrow M_j + w_{ij}^{w} \Delta_j\]</div>
+<ul>
+<li><span class="arithmatex">\(w^r, w^w\)</span>：读/写权重，由注意力或内容寻址计算</li>
+<li>适合需要存储大量历史信息的任务</li>
+</ul>
+<hr />
+<h3 id="memory-token-pytorch">Memory Token 代码实现（PyTorch 伪代码）</h3>
+<pre class="codehilite"><code class="language-python">import torch
+import torch.nn as nn
+
+class MemoryTransformerDecoderLayer(nn.Module):
+    def __init__(self, d_model=256, n_heads=8, n_memory=16, ffn_dim=1024):
+        super().__init__()
+        self.n_memory = n_memory
+        self.d_model = d_model
+
+        # === Memory Token: 可学习参数 ===
+        self.memory_tokens = nn.Parameter(
+            torch.randn(n_memory, d_model) * 0.02
+        )  # [16, 256], 所有样本共享
+
+        # === Self-Attention (带 Memory) ===
+        self.self_attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+
+        # === Cross Attention (查询 Encoder) ===
+        self.cross_attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+
+        # === FFN ===
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, ffn_dim),
+            nn.ReLU(),
+            nn.Linear(ffn_dim, d_model),
+        )
+
+        # === LayerNorm ===
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.norm3 = nn.LayerNorm(d_model)
+
+    def forward(self, x, encoder_output, tgt_mask=None):
+        &quot;&quot;&quot;
+        x:              [batch, T, d_model]     Decoder 输入
+        encoder_output: [batch, S, d_model]     Encoder 输出
+        &quot;&quot;&quot;
+        batch_size = x.shape[0]
+
+        # === Step 1: 拼接 Memory Token ===
+        # memory_tokens: [n_memory, d_model] → [batch, n_memory, d_model]
+        mem = self.memory_tokens.unsqueeze(0).expand(batch_size, -1, -1)
+        # x_with_mem: [batch, T + n_memory, d_model]
+        x_with_mem = torch.cat([mem, x], dim=1)
+
+        # === Step 2: Self-Attention (Memory + Real tokens 一起参与) ===
+        attn_out, _ = self.self_attn(
+            x_with_mem, x_with_mem, x_with_mem,
+            attn_mask=tgt_mask,  # Causal mask 需要扩展到 (T+n_mem) × (T+n_mem)
+        )
+        x_with_mem = self.norm1(x_with_mem + attn_out)  # 残差 + LayerNorm
+
+        # === Step 3: 分离 — 只取真实 token 部分 ===
+        mem_updated = x_with_mem[:, :self.n_memory, :]  # 可用于下一层传递
+        x = x_with_mem[:, self.n_memory:, :]            # [batch, T, d_model]
+
+        # === Step 4: Cross Attention (查询 Encoder 上下文) ===
+        cross_out, _ = self.cross_attn(x, encoder_output, encoder_output)
+        x = self.norm2(x + cross_out)
+
+        # === Step 5: FFN ===
+        ffn_out = self.ffn(x)
+        x = self.norm3(x + ffn_out)
+
+        return x  # 也可以返回 (x, mem_updated) 供下一层使用
+
+
+# === 完整模型 ===
+class SuspensionTransformer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Encoder (MLP)
+        self.encoder = nn.Sequential(
+            nn.Linear(34, 256), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(256, 256), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(256, 1024),
+        )
+        # 位置编码
+        self.pe_proj = nn.Linear(128, 256)
+        self.pos_query = nn.Embedding(101, 256)
+        # Decoder (4 层, 每层带 Memory Token)
+        self.decoder_layers = nn.ModuleList([
+            MemoryTransformerDecoderLayer(d_model=256, n_heads=8, n_memory=16)
+            for _ in range(4)
+        ])
+        # 输出头
+        self.out_proj = nn.Sequential(
+            nn.Linear(256, 512), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(512, 8),
+        )
+
+    def forward(self, hardpoints, wc_stroke, target_seq=None):
+        # Encoder
+        enc_in = torch.cat([hardpoints, wc_stroke], dim=-1)  # [B, T, 34]
+        enc_out = self.encoder(enc_in)                       # [B, T, 1024]
+
+        # 位置编码
+        pos = torch.arange(101)
+        pe = self.pe_proj(sin_cos_encoding(pos, 128))  # [101, 256]
+        pq = self.pos_query(pos)                         # [101, 256]
+        P = pe + pq                                      # [101, 256]
+
+        # Decoder
+        x = target_seq + P  # [B, T, 256]
+        for layer in self.decoder_layers:
+            x = layer(x, enc_out)
+
+        # 输出头
+        out = self.out_proj(x)  # [B, T, 8]
+        return out
+</code></pre>
+
+<hr />
+<h2 id="_4">三、图中架构逐层拆解</h2>
+<h3 id="31">3.1 任务定义：悬挂硬点 → 运动学曲线</h3>
+<ul>
+<li><strong>输入</strong>：33 维硬点坐标 + wc_stroke 序列（<span class="arithmatex">\(T=101\)</span>，范围 <span class="arithmatex">\([-50, 50]\)</span> mm）</li>
+<li><strong>输出</strong>：8 条运动学曲线（每条 <span class="arithmatex">\(T=101\)</span> 步）</li>
+<li>toe, camber, caster, caster_arm, scrub_radius, tire_con_point_x/y/z</li>
+</ul>
+<h3 id="32">3.2 超参数一览</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>d_model</code></td>
+<td>256</td>
+<td>模型隐层维度</td>
+</tr>
+<tr>
+<td><code>n_layers</code></td>
+<td>4</td>
+<td>Decoder 层数</td>
+</tr>
+<tr>
+<td><code>n_heads</code></td>
+<td>8</td>
+<td>注意力头数</td>
+</tr>
+<tr>
+<td><code>n_ctx</code></td>
+<td>4</td>
+<td>上下文窗口/批处理相关</td>
+</tr>
+<tr>
+<td><code>n_hp</code></td>
+<td>33</td>
+<td>硬点坐标维度</td>
+</tr>
+<tr>
+<td><code>T</code></td>
+<td>101</td>
+<td>序列长度</td>
+</tr>
+<tr>
+<td><code>n_out</code></td>
+<td>8</td>
+<td>输出曲线数</td>
+</tr>
+<tr>
+<td><strong>总参数量</strong></td>
+<td><strong>4,745,992</strong></td>
+<td>约 475 万</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33">3.3 各层说明</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>层</th>
+<th>维度变化</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>encoder.0</td>
+<td>Linear+ReLU+Dropout</td>
+<td>33→256</td>
+<td>8,704</td>
+</tr>
+<tr>
+<td>encoder.3</td>
+<td>Linear+ReLU+Dropout</td>
+<td>256→256</td>
+<td>65,792</td>
+</tr>
+<tr>
+<td>ctx_proj</td>
+<td>Linear</td>
+<td>256→1024</td>
+<td>263,168</td>
+</tr>
+<tr>
+<td>pe_proj</td>
+<td>Linear</td>
+<td>128→256</td>
+<td>33,024</td>
+</tr>
+<tr>
+<td>pos_query</td>
+<td>Embedding</td>
+<td>101→256</td>
+<td>25,856</td>
+</tr>
+<tr>
+<td>DecoderLayer[0-3]</td>
+<td>TransformerDecoder ×4</td>
+<td>256→256</td>
+<td>4,213,760</td>
+</tr>
+<tr>
+<td>out_proj.0</td>
+<td>Linear+ReLU+Dropout</td>
+<td>256→512</td>
+<td>131,584</td>
+</tr>
+<tr>
+<td>out_proj.3</td>
+<td>Linear</td>
+<td>512→8</td>
+<td>4,104</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td></td>
+<td></td>
+<td><strong>4,745,992</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Encoder 用 MLP 而非标准 Transformer，因为硬点是固定维度向量，不需要序列级自注意力。Decoder 是标准 4 层 TransformerDecoder。</p>
+</blockquote>
+<hr />
+<h2 id="_5">四、训练过程详解</h2>
+<h3 id="41">4.1 数据准备</h3>
+<pre class="codehilite"><code class="language-python"># 单个样本
+hardpoints = [33]           # 33个硬点坐标
+wc_stroke = [101]           # 101步轮心位移
+kinematics = [101, 8]       # 8条曲线标签
+
+# 构造 Encoder 输入: 每个时间步拼接 [hardpoints, wc_stroke[t]]
+encoder_input = [101, 34]
+
+# 构造 Decoder 输入 (Teacher Forcing)
+decoder_input = kinematics[:-1]  # [100, 8], 去掉最后一步
+</code></pre>
+
+<h3 id="42">4.2 前向传播</h3>
+<pre class="codehilite"><code>1. Encoder: hardpoints + wc_stroke → encoder.0 → encoder.3 → ctx_proj → context [1024]
+2. 位置编码: pos → sin/cos → pe_proj + pos_query → P [101, 256]
+3. Decoder: decoder_input + P → 4层 DecoderLayer (每层: MaskedSelfAttn + CrossAttn + FFN)
+4. 输出头: out_proj.0 → out_proj.3 → pred [100, 8]
+5. 损失: MSE(pred, kinematics[1:])
+</code></pre>
+
+<h3 id="43">4.3 损失函数</h3>
+<div class="arithmatex">\[\mathcal{L} = \frac{1}{T \times n_{out}} \sum_{t=1}^{T} \sum_{i=1}^{8} (y_{t,i} - \hat{y}_{t,i})^2\]</div>
+<hr />
+<h2 id="_6">五、推理过程详解</h2>
+<h3 id="51">5.1 推理与训练的核心区别</h3>
+<table>
+<thead>
+<tr>
+<th>方面</th>
+<th>训练</th>
+<th>推理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decoder 输入</td>
+<td>真实标签 (Teacher Forcing)</td>
+<td>模型自身输出</td>
+</tr>
+<tr>
+<td>并行性</td>
+<td>所有时间步并行</td>
+<td>逐个自回归生成</td>
+</tr>
+<tr>
+<td>Encoder</td>
+<td>每样本运行一次</td>
+<td>每样本运行一次（可缓存）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52">5.2 自回归生成</h3>
+<pre class="codehilite"><code>t=0: 输入 &lt;START&gt; → Decoder → 预测 y_0
+t=1: 输入 [y_0] → Decoder → 预测 y_1
+...
+t=100: 输入 [y_0,...,y_99] → Decoder → 预测 y_100
+</code></pre>
+
+<h3 id="53-kv-cache">5.3 KV Cache 优化</h3>
+<pre class="codehilite"><code class="language-python"># 每步只计算新位置的 Q，K/V 从缓存读取
+Q_new = x_new @ W_Q
+K_cache = concat([K_cache, K_new])  # 累积历史 K
+V_cache = concat([V_cache, V_new])  # 累积历史 V
+output = softmax(Q_new @ K_cache.T / sqrt(d_k)) @ V_cache
+</code></pre>
+
+<hr />
+<h2 id="pmsm">六、PMSM 电机控制应用案例</h2>
+<blockquote>
+<p>本节展示如何将上述 Transformer + Memory Token 框架应用于 <strong>PMSM (永磁同步电机) 控制</strong>，并与之前学过的 CLF/CBF/QP 形成对比。</p>
+</blockquote>
+<h3 id="61">6.1 任务定义</h3>
+<p><strong>目标</strong>：设计一个基于 Transformer 的 PMSM 控制器，在满足安全约束（电流上限、电压上限、速度上限）的前提下，实现速度跟踪。</p>
+<p><strong>与悬挂设计任务的区别</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>方面</th>
+<th>悬挂设计</th>
+<th>PMSM 控制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>任务类型</td>
+<td>离线预测（给定硬点→曲线）</td>
+<td>在线控制（实时跟踪参考速度）</td>
+</tr>
+<tr>
+<td>输入</td>
+<td>33维硬点 + wc_stroke</td>
+<td>电机状态 <span class="arithmatex">\([i_d, i_q, \omega_m]\)</span> + 参考速度 <span class="arithmatex">\(\omega_{ref}\)</span></td>
+</tr>
+<tr>
+<td>输出</td>
+<td>8条运动学曲线</td>
+<td>2维电压 <span class="arithmatex">\([u_d, u_q]\)</span></td>
+</tr>
+<tr>
+<td>时序特性</td>
+<td>序列到序列</td>
+<td>闭环反馈（每步状态更新）</td>
+</tr>
+<tr>
+<td>约束</td>
+<td>无显式约束</td>
+<td>电流/电压/速度限制</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62">6.2 状态空间与控制输入</h3>
+<p><strong>PMSM 数学模型</strong>（表贴式 SPMSM）：</p>
+<div class="arithmatex">\[\frac{di_d}{dt} = -\frac{R_s}{L_s} i_d + \omega_e L_s i_q / L_s + \frac{u_d}{L_s}\]</div>
+<p>简化为：</p>
+<div class="arithmatex">\[\dot{i}_d = -\frac{R_s}{L_s} i_d + \omega_e i_q + \frac{u_d}{L_s}\]</div>
+<div class="arithmatex">\[\dot{i}_q = -\frac{R_s}{L_s} i_q - \omega_e i_d - \frac{\psi_f \omega_e}{L_s} + \frac{u_q}{L_s}\]</div>
+<div class="arithmatex">\[\dot{\omega}_m = \frac{1}{J}\left(\frac{3}{2} p \psi_f i_q - B \omega_m - T_L\right)\]</div>
+<p>其中：<br />
+- <span class="arithmatex">\(R_s\)</span>：定子电阻, <span class="arithmatex">\(L_s\)</span>：定子电感, <span class="arithmatex">\(\psi_f\)</span>：永磁磁链<br />
+- <span class="arithmatex">\(p\)</span>：极对数, <span class="arithmatex">\(J\)</span>：转动惯量, <span class="arithmatex">\(B\)</span>：摩擦系数, <span class="arithmatex">\(T_L\)</span>：负载转矩<br />
+- <span class="arithmatex">\(\omega_e = p \cdot \omega_m\)</span>：电角速度</p>
+<p><strong>状态向量</strong>：<span class="arithmatex">\(x = [i_d, i_q, \omega_m]^T \in \mathbb{R}^3\)</span></p>
+<p><strong>控制输入</strong>：<span class="arithmatex">\(u = [u_d, u_q]^T \in \mathbb{R}^2\)</span></p>
+<p><strong>约束</strong>：<br />
+- 电流限制：<span class="arithmatex">\(\sqrt{i_d^2 + i_q^2} \le i_{\max}\)</span><br />
+- 电压限制：<span class="arithmatex">\(\sqrt{u_d^2 + u_q^2} \le U_{\max}\)</span><br />
+- 速度限制：<span class="arithmatex">\(|\omega_m| \le \omega_{\max}\)</span></p>
+<h3 id="63-transformer">6.3 Transformer 架构设计</h3>
+<pre class="codehilite"><code>┌──────────────────────────────────────────────────────────────────────┐
+│           PMSM Transformer Controller 架构                           │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────┐         │
+│  │ Encoder (理解当前状态 + 参考轨迹)                        │         │
+│  │                                                         │         │
+│  │  输入: [i_d, i_q, ω_m, ω_ref, i_d_ref, i_q_ref]        │         │
+│  │        × T_window (历史 H 步)                            │         │
+│  │  encoder.0: Linear(6 → 128) + ReLU                     │         │
+│  │  encoder.1: Linear(128 → 256) + ReLU                   │         │
+│  │  ctx_proj: Linear(256 → 512)                           │         │
+│  │  → context: [H, 512]                                   │         │
+│  └─────────────────────────────────────────────────────────┘         │
+│                          ↓                                           │
+│  ┌─────────────────────────────────────────────────────────┐         │
+│  │ Memory Tokens                                           │         │
+│  │  M: [N_m=16, 256] (可学习, 存储电机运行模式知识)           │         │
+│  └─────────────────────────────────────────────────────────┘         │
+│                          ↓                                           │
+│  ┌─────────────────────────────────────────────────────────┐         │
+│  │ Decoder (4层 TransformerDecoderLayer)                    │         │
+│  │                                                         │         │
+│  │  输入: 上一步控制 u_{t-1} + 位置编码                      │         │
+│  │  + Memory Tokens (拼接)                                 │         │
+│  │                                                         │         │
+│  │  每层:                                                   │         │
+│  │    [Masked Self-Attn] ← Memory Token 参与注意力          │         │
+│  │    [Cross Attn]       ← 查询 Encoder 上下文              │         │
+│  │    [FFN]                                                │         │
+│  │                                                         │         │
+│  │  → Decoder 输出: [T_pred, 256]                          │         │
+│  └─────────────────────────────────────────────────────────┘         │
+│                          ↓                                           │
+│  ┌─────────────────────────────────────────────────────────┐         │
+│  │ 安全约束投影层 (Safety Projection)                      │         │
+│  │                                                         │         │
+│  │  raw_u = out_proj(256 → 2)                              │         │
+│  │                                                         │         │
+│  │  约束投影:                                               │         │
+│  │    if ||raw_u|| &gt; U_max:  u = U_max * raw_u / ||raw_u|| │         │
+│  │    if ||i_pred|| &gt; i_max:  缩放 u_q (降低电流)            │         │
+│  │                                                         │         │
+│  │  → 最终控制: u = [u_d, u_q]                             │         │
+│  └─────────────────────────────────────────────────────────┘         │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<p><strong>超参数</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(d_{model}\)</span></td>
+<td>256</td>
+<td>隐层维度</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(n_{layers}\)</span></td>
+<td>4</td>
+<td>Decoder 层数</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(n_{heads}\)</span></td>
+<td>8</td>
+<td>注意力头数</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(N_m\)</span></td>
+<td>16</td>
+<td>Memory Token 数量</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(H\)</span></td>
+<td>50</td>
+<td>历史窗口长度</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(T_{pred}\)</span></td>
+<td>10</td>
+<td>预测时域</td>
+</tr>
+<tr>
+<td>输入维度</td>
+<td>6</td>
+<td><span class="arithmatex">\([i_d, i_q, \omega_m, \omega_{ref}, i_{d,ref}, i_{q,ref}]\)</span></td>
+</tr>
+<tr>
+<td>输出维度</td>
+<td>2</td>
+<td><span class="arithmatex">\([u_d, u_q]\)</span></td>
+</tr>
+</tbody>
+</table>
+<h3 id="64-memory-token-pmsm">6.4 Memory Token 在 PMSM 中的作用</h3>
+<p><strong>Memory Token 存储了什么？</strong></p>
+<p>通过端到端训练，Memory Token 会自动学到存储以下信息（无需显式编码）：</p>
+<table>
+<thead>
+<tr>
+<th>Memory Slot</th>
+<th>学到的内容</th>
+<th>物理含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(M_0\)</span>-<span class="arithmatex">\(M_3\)</span></td>
+<td>电机参数编码</td>
+<td><span class="arithmatex">\(R_s, L_s, \psi_f, J\)</span> 的隐式表示</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(M_4\)</span>-<span class="arithmatex">\(M_7\)</span></td>
+<td>典型运行工况</td>
+<td>启动/稳速/制动/反转模式</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(M_8\)</span>-<span class="arithmatex">\(M_{11}\)</span></td>
+<td>约束边界信息</td>
+<td>电流/电压/速度的边界特征</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(M_{12}\)</span>-<span class="arithmatex">\(M_{15}\)</span></td>
+<td>历史控制策略</td>
+<td>上一个控制周期中有效/无效的 <span class="arithmatex">\(u_d, u_q\)</span></td>
+</tr>
+</tbody>
+</table>
+<p><strong>工作原理</strong>：</p>
+<pre class="codehilite"><code>当前状态 [i_d, i_q, ω_m, ω_ref] 进入 Decoder 时:
+
+1. Memory Token 与当前状态拼接 → [16+T, 256]
+
+2. Self-Attention 中:
+   - 当前状态 token 的 Q 去查询 Memory Token 的 K/V
+     → &quot;从记忆中检索：上次遇到类似状态时，什么控制策略有效？&quot;
+   - Memory Token 的 Q 去查询当前状态 token 的 K/V
+     → &quot;当前状态是否与某种已记忆的工况模式匹配？&quot;
+
+3. Cross-Attention 中:
+   - Memory Token 也参与查询 Encoder 上下文
+     → &quot;当前历史轨迹中是否有需要特别注意的约束接近事件？&quot;
+
+4. 最终: Decoder 输出融合了 Memory Token 检索到的先验知识
+</code></pre>
+
+<p><strong>与 CLF/CBF 中松弛变量 <span class="arithmatex">\(\delta\)</span> 的对比</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>CLF/CBF 中的 <span class="arithmatex">\(\delta\)</span></th>
+<th>Memory Token</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>作用</td>
+<td>量化 CLF 约束的违反程度</td>
+<td>存储跨时步的运行经验</td>
+</tr>
+<tr>
+<td>类型</td>
+<td>优化变量（每步求解）</td>
+<td>可学习参数（训练时更新）</td>
+</tr>
+<tr>
+<td>更新方式</td>
+<td>QP 求解器实时优化</td>
+<td>反向传播梯度下降</td>
+</tr>
+<tr>
+<td>物理含义</td>
+<td>"妥协了多少稳定性"</td>
+<td>"从历史中学到了什么"</td>
+</tr>
+</tbody>
+</table>
+<h3 id="65">6.5 训练数据生成</h3>
+<p><strong>方式 1：从仿真器采集</strong></p>
+<pre class="codehilite"><code class="language-python"># 用传统 PI/FOC 控制器运行 PMSM 仿真，采集状态-控制对
+
+# 仿真参数
+Rs, Ls, psi_f = 0.5, 0.003, 0.1  # 电阻, 电感, 磁链
+J, B, p = 0.01, 0.001, 4         # 惯量, 摩擦, 极对数
+
+# 数据采集
+for episode in range(10000):
+    # 随机初始状态
+    state = np.random.uniform([-50, -50, 0], [50, 50, 300])
+    omega_ref = np.random.choice([0, 100, 200, 300, -200])
+
+    trajectory = []
+    for t in range(500):  # 每个 episode 500 步
+        # FOC 控制器输出
+        u_d, u_q = foc_controller(state, omega_ref)
+
+        # 记录: [state, ref, u]
+        trajectory.append({
+            'state': state.copy(),          # [i_d, i_q, ω_m]
+            'ref': omega_ref,               # 参考速度
+            'control': [u_d, u_q],          # 控制输入
+        })
+
+        # 状态更新 (Euler 积分)
+        state = pmsm_dynamics(state, [u_d, u_q], dt=1e-4)
+
+    dataset.append(trajectory)
+</code></pre>
+
+<p><strong>方式 2：从 CBF-QP 控制器采集（推荐）</strong></p>
+<pre class="codehilite"><code class="language-python"># 用之前学过的 CLF-CBF-QP 控制器生成数据
+# 好处: 这些数据天然满足安全约束
+
+for episode in range(10000):
+    state = np.random.uniform(...)
+    omega_ref = np.random.choice([...])
+
+    for t in range(500):
+        # 求解 CLF-CBF-QP
+        u = solve_clf_cbf_qp(state, omega_ref,
+                            i_max=50, U_max=200, omega_max=300)
+        trajectory.append({'state': state, 'ref': omega_ref, 'control': u})
+        state = pmsm_dynamics(state, u, dt=1e-4)
+</code></pre>
+
+<p><strong>训练样本构造</strong>：</p>
+<pre class="codehilite"><code class="language-python"># 滑动窗口构造样本
+samples = []
+for traj in dataset:
+    for t in range(0, len(traj) - H - T_pred, stride=1):
+        # 历史窗口
+        history = traj[t : t+H]                    # H 步历史
+        # 预测窗口
+        future = traj[t+1 : t+1+T_pred]            # T_pred 步未来
+
+        # Encoder 输入: [H, 6]
+        enc_in = np.array([[s['state'][0], s['state'][1], s['state'][2],
+                           s['ref'], 0, 0] for s in history])
+
+        # Decoder 输入 (Teacher Forcing): [T_pred, 2]
+        dec_in = np.array([s['control'] for s in future[:-1]])
+
+        # 标签: [T_pred, 2]
+        labels = np.array([s['control'] for s in future[1:]])
+
+        samples.append((enc_in, dec_in, labels))
+</code></pre>
+
+<h3 id="66">6.6 训练过程</h3>
+<pre class="codehilite"><code>┌──────────────────────────────────────────────────────────────┐
+│                     训练流程                                   │
+├──────────────────────────────────────────────────────────────┤
+│ 1. 采样 batch: (enc_in [B,H,6], dec_in [B,T,2], labels [B,T,2])│
+│                                                              │
+│ 2. Encoder:                                                   │
+│    enc_in → Linear(6→128) → ReLU → Linear(128→256) → ReLU    │
+│    → Linear(256→512) → context [B, H, 512]                   │
+│                                                              │
+│ 3. 位置编码 + Memory Token:                                   │
+│    P = pe_proj(sin_cos(pos)) + pos_query(pos)  [T, 256]      │
+│    M = memory_tokens  [16, 256]  (共享可学习参数)              │
+│    dec_emb = Linear(2→256)(dec_in) + P  [B, T, 256]          │
+│    dec_input = concat([M.expand(B,-1,-1), dec_emb], dim=1)    │
+│                              [B, 16+T, 256]                   │
+│                                                              │
+│ 4. Decoder (4层):                                             │
+│    每层:                                                      │
+│      x = MaskedSelfAttn(dec_input)     → 残差+Norm            │
+│      x = CrossAttn(x, context)         → 残差+Norm            │
+│      x = FFN(x)                        → 残差+Norm            │
+│    分离: x = x[:, 16:, :]  (去掉 Memory Token)                │
+│                                                              │
+│ 5. 输出头:                                                    │
+│    x = Linear(256→128)(x) → ReLU → Linear(128→2) → u_raw      │
+│    u_raw: [B, T, 2]                                           │
+│                                                              │
+│ 6. 损失:                                                      │
+│    L_mse = MSE(u_raw, labels)                                 │
+│    L_constraint = Σ_t ReLU(||u_raw[t]||² - U_max²)           │
+│    L = L_mse + λ * L_constraint                               │
+│                                                              │
+│ 7. 反向传播 → 更新所有参数 (包括 Memory Token!)                │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<p><strong>损失函数设计</strong>：</p>
+<div class="arithmatex">\[\mathcal{L} = \underbrace{\frac{1}{T \cdot 2} \sum_{t} \|u_t - u_t^*\|^2}_{\text{MSE 追踪损失}} + \lambda_1 \underbrace{\sum_t \text{ReLU}(\|u_t\|^2 - U_{\max}^2)}_{\text{电压约束惩罚}} + \lambda_2 \underbrace{\sum_t \text{ReLU}(\|\hat{i}_t\|^2 - i_{\max}^2)}_{\text{电流预测惩罚}}\]</div>
+<p>其中 <span class="arithmatex">\(\hat{i}_t\)</span> 是通过模型预测的 <span class="arithmatex">\(u_t\)</span> 前向模拟一步得到的电流预测值。</p>
+<h3 id="67">6.7 推理过程（在线控制）</h3>
+<pre class="codehilite"><code>┌──────────────────────────────────────────────────────────────┐
+│                  在线控制循环                                  │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  初始化:                                                     │
+│    history = []  # 维护最近 H=50 步的状态历史                  │
+│    Memory M = 训练好的固定参数                                 │
+│                                                              │
+│  循环 (每 0.1ms 一次):                                        │
+│    1. 读取传感器: x = [i_d, i_q, ω_m]                        │
+│    2. 获取参考: ω_ref (来自上层速度指令)                       │
+│    3. 更新历史: history.append([i_d, i_q, ω_m, ω_ref, 0, 0]) │
+│                                                              │
+│    4. Encoder 前向 (每步都跑, 但输入只有 H=50 步):             │
+│       context = Encoder(history)  # [1, 50, 512]             │
+│                                                              │
+│    5. Decoder 前向 (自回归, 只需生成第 1 步):                  │
+│       dec_in = [u_{t-1}]  # 上一步的控制                      │
+│       dec_in = concat([M, embed(dec_in) + P])                │
+│       → Decoder(4层) → out_proj → u_raw [1, 2]               │
+│                                                              │
+│    6. 安全投影 (硬约束):                                       │
+│       if ||u_raw|| &gt; U_max:                                  │
+│           u = U_max * u_raw / ||u_raw||  # 电压限幅            │
+│       else:                                                  │
+│           u = u_raw                                          │
+│                                                              │
+│    7. 输出控制: u = [u_d, u_q] → 逆变器                        │
+│    8. 等待下一个控制周期                                       │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<p><strong>推理伪代码</strong>：</p>
+<pre class="codehilite"><code class="language-python">class PMSMTransformerController:
+    def __init__(self, model, H=50, U_max=200, i_max=50):
+        self.model = model  # 训练好的 Transformer
+        self.history = deque(maxlen=H)
+        self.last_u = np.array([0, 0])
+        self.U_max = U_max
+        self.i_max = i_max
+
+    def control(self, state, omega_ref):
+        &quot;&quot;&quot;实时控制循环&quot;&quot;&quot;
+        i_d, i_q, omega_m = state
+
+        # 1. 更新历史
+        self.history.append([i_d, i_q, omega_m, omega_ref, 0, 0])
+
+        if len(self.history) &lt; self.history.maxlen:
+            return np.array([0, 0])  # 历史不足时输出零电压
+
+        # 2. Encoder (处理历史窗口)
+        enc_in = torch.tensor(list(self.history)).unsqueeze(0)  # [1, H, 6]
+        with torch.no_grad():
+            context = self.model.encoder(enc_in)  # [1, H, 512]
+
+            # 3. Decoder (只用上一步控制作为输入, 生成当前步控制)
+            dec_in = torch.tensor(self.last_u).float().unsqueeze(0).unsqueeze(0)  # [1, 1, 2]
+            # 拼接 Memory Token
+            mem = self.model.decoder_layers[0].memory_tokens  # [16, 256]
+            mem = mem.unsqueeze(0)  # [1, 16, 256]
+
+            dec_emb = self.model.embed(dec_in)  # [1, 1, 256]
+            P = self.model.pos_encoding(0)       # [1, 256]
+            dec_emb = dec_emb + P
+
+            dec_input = torch.cat([mem, dec_emb], dim=1)  # [1, 17, 256]
+
+            for layer in self.model.decoder_layers:
+                dec_input = layer(dec_input, context)
+
+            # 去掉 Memory Token, 只取真实输出
+            x = dec_input[:, -1:, :]  # [1, 1, 256]
+            u_raw = self.model.out_proj(x)  # [1, 1, 2]
+
+        u = u_raw.squeeze().numpy()  # [2]
+
+        # 4. 安全投影 (硬约束, 类似 CBF 的前向安全)
+        norm_u = np.linalg.norm(u)
+        if norm_u &gt; self.U_max:
+            u = u * self.U_max / norm_u  # 电压限幅
+
+        self.last_u = u
+        return u
+</code></pre>
+
+<h3 id="68-clfcbfqp">6.8 与 CLF/CBF/QP 的关系</h3>
+<blockquote>
+<p><strong>核心洞察</strong>：Transformer 控制器与 CLF-CBF-QP 是两种不同的控制范式，但可以互补。</p>
+</blockquote>
+<h4 id="_7">范式对比</h4>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>CLF-CBF-QP</th>
+<th>Transformer + Memory Token</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>设计方式</strong></td>
+<td>人工设计 CLF/CBF，QP 实时求解</td>
+<td>端到端学习，从数据中学习控制策略</td>
+</tr>
+<tr>
+<td><strong>约束处理</strong></td>
+<td>硬约束（QP 不等式，不可违反）</td>
+<td>软约束（损失函数惩罚）+ 推理时安全投影</td>
+</tr>
+<tr>
+<td><strong>实时性</strong></td>
+<td>每步求解 QP（~0.1ms）</td>
+<td>每步前向传播（~0.05ms）</td>
+</tr>
+<tr>
+<td><strong>泛化性</strong></td>
+<td>只对设计好的 CLF/CBF 有效</td>
+<td>可泛化到未见过的工况（Memory Token 存储模式）</td>
+</tr>
+<tr>
+<td><strong>可解释性</strong></td>
+<td>高（数学公式明确）</td>
+<td>低（黑箱，但 Memory Token 提供了一定的可分析性）</td>
+</tr>
+<tr>
+<td><strong>安全性保证</strong></td>
+<td><strong>有理论保证</strong>（CBF 前向不变性）</td>
+<td><strong>无理论保证</strong>（依赖训练数据和投影层）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="transformer-cbf-safety-filter">混合方案：Transformer + CBF Safety Filter</h4>
+<pre class="codehilite"><code class="language-python">def hybrid_control(state, omega_ref, transformer, clf_cbf_qp):
+    &quot;&quot;&quot;
+    Transformer 生成参考控制 → CBF-QP 做安全过滤
+
+    优点:
+    - Transformer 提供高效、泛化的参考控制
+    - CBF-QP 保证安全约束不违反
+    - 两者互补: 学习 + 优化
+    &quot;&quot;&quot;
+    # Step 1: Transformer 生成参考控制 (含 Memory Token 检索)
+    u_ref = transformer.control(state, omega_ref)  # [u_d, u_q]
+
+    # Step 2: CBF-QP 安全过滤
+    # 把 u_ref 作为 QP 的&quot;目标&quot;, 在安全约束下找最接近 u_ref 的 u
+    u_safe = clf_cbf_qp.solve(
+        state=state,
+        u_ref=u_ref,        # ← Transformer 输出作为参考
+        i_max=50,           # 电流约束 (CBF, r=1)
+        U_max=200,          # 电压约束 (Box, r=0)
+        omega_max=300,      # 速度约束 (HOCBF, r=2)
+    )
+
+    return u_safe  # 保证安全的控制
+</code></pre>
+
+<p><strong>QP 形式</strong>：</p>
+<div class="arithmatex">\[\min_{u, \delta} \quad \|u - u_{\text{ref}}\|^2 + \lambda \delta^2\]</div>
+<div class="arithmatex">\[\text{s.t.} \quad \underbrace{L_f h_i(x) + L_g h_i(x) \cdot u \ge -\alpha(h_i(x))}_{\text{CBF 约束 (电流, r=1)}}\]</div>
+<div class="arithmatex">\[\qquad \underbrace{\psi_r(x, u) \ge 0}_{\text{HOCBF 约束 (速度, r=2)}}\]</div>
+<div class="arithmatex">\[\qquad \underbrace{\|u\| \le U_{\max}}_{\text{Box 约束 (电压, r=0)}}\]</div>
+<p>其中 <span class="arithmatex">\(u_{\text{ref}}\)</span> 来自 Transformer 的输出（含 Memory Token 的经验检索）。</p>
+<h4 id="memory-token_1">Memory Token 在混合方案中的角色</h4>
+<pre class="codehilite"><code>训练阶段:
+  1. 用 CLF-CBF-QP 控制器采集大量安全数据
+  2. 训练 Transformer 模仿 QP 控制器的行为
+  3. Memory Token 学到: QP 在不同工况下的&quot;最优策略模式&quot;
+
+推理阶段:
+  1. Transformer 输出 u_ref (快速, 泛化)
+  2. CBF-QP 做安全过滤 (保证约束)
+  3. 当 Transformer 输出在安全集内时, QP 直接接受 → 省计算
+  4. 当 Transformer 输出违反约束时, QP 投影到最近的安全解
+
+→ 95% 的时间直接用 Transformer, 5% 需要 QP 介入
+→ 比纯 QP 快 ~5x, 比纯 Transformer 安全
+</code></pre>
+
+<h4 id="_8">数值示例</h4>
+<pre class="codehilite"><code class="language-python"># 假设当前状态
+state = [i_d=2.0, i_q=45.0, omega_m=280.0]  # 接近电流和速度上限
+omega_ref = 300.0  # 目标速度
+
+# === Transformer 输出 ===
+# Memory Token 检索到: &quot;上次 ω_m=280, ω_ref=300 时, u_q=30V 效果好&quot;
+u_ref = transformer.control(state, omega_ref)
+# u_ref = [u_d=0.5, u_q=32.0]  # Transformer 建议的电压
+
+# === CBF 安全检查 ===
+# 电流约束 (CBF, r=1):
+#   h_i = i_max^2 - (i_d^2 + i_q^2) = 2500 - (4 + 2025) = 471 &gt; 0 → 安全
+#   但 L_g h_i · u_ref = -2*i_q * u_q / Ls = -2*45*32/0.003 = -960000
+#   需要: L_f h + L_g h · u &gt;= -alpha * h
+#   -960000 &lt; -alpha * 471 → 可能违反!
+
+# === QP 投影 ===
+u_safe = clf_cbf_qp.solve(state, u_ref, ...)
+# u_safe = [u_d=0.5, u_q=28.5]  # 稍微降低 u_q 保证电流安全
+
+# 结果: Transformer 的 u_q=32 被 QP 投影到 28.5, 保证电流约束
+</code></pre>
+
+<hr />
+<h2 id="faq">七、常见问题 FAQ</h2>
+<h3 id="q1-encoder-transformer-encoder">Q1: 为什么 Encoder 不用标准 Transformer Encoder？</h3>
+<p>输入硬点是固定维度向量（33维），不是变长序列，不需要 Self-Attention 建模序列内关系。简单 MLP 足够高效。</p>
+<h3 id="q2-memory-token-pos_query">Q2: Memory Token 与 pos_query 有什么区别？</h3>
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th>pos_query</th>
+<th>Memory Token</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数量</td>
+<td><span class="arithmatex">\(101 \times 256 = 25856\)</span></td>
+<td><span class="arithmatex">\(16 \times 256 = 4096\)</span></td>
+</tr>
+<tr>
+<td>作用</td>
+<td>给每个位置一个可学习身份</td>
+<td>跨样本共享的"经验记忆"</td>
+</tr>
+<tr>
+<td>参与注意力</td>
+<td>否（只是加到输入上）</td>
+<td>是（作为额外 token 参与 Q/K/V）</td>
+</tr>
+<tr>
+<td>类比</td>
+<td>工牌（标识你是谁）</td>
+<td>便签纸（记着有用的信息）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="q3-memory-token">Q3: Memory Token 适合什么任务？</h3>
+<ul>
+<li><strong>多工况系统</strong>：电机在不同转速/负载下的控制</li>
+<li><strong>长序列</strong>：需要记住很久之前的信息</li>
+<li><strong>多任务</strong>：同一模型处理不同类型的输入</li>
+<li><strong>少样本</strong>：Memory Token 可以存储任务级别的先验</li>
+</ul>
+<h3 id="q4-transformer-cbf-qp">Q4: Transformer 控制器能完全替代 CBF-QP 吗？</h3>
+<p><strong>不能</strong>。CBF-QP 有严格的数学安全保证（前向不变性），Transformer 没有。最佳实践是<strong>混合方案</strong>：Transformer 提供快速参考，CBF-QP 做安全过滤。</p>
+<h3 id="q5-pmsm-h50">Q5: PMSM 控制中为什么需要历史窗口（H=50）？</h3>
+<ul>
+<li>电机控制是<strong>闭环系统</strong>，当前状态不足以决定最优控制</li>
+<li>历史轨迹包含：加速度趋势、负载变化、上次控制效果</li>
+<li>Transformer 通过 Self-Attention 从历史中提取时序模式</li>
+</ul>
+<hr />
+<h2 id="memory-token_2">附录：参数统计表（含 Memory Token 版本）</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>参数</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>encoder.0</td>
+<td>Linear(6→128)</td>
+<td>896</td>
+</tr>
+<tr>
+<td>encoder.1</td>
+<td>Linear(128→256)</td>
+<td>33,024</td>
+</tr>
+<tr>
+<td>ctx_proj</td>
+<td>Linear(256→512)</td>
+<td>131,584</td>
+</tr>
+<tr>
+<td>pe_proj</td>
+<td>Linear(128→256)</td>
+<td>33,024</td>
+</tr>
+<tr>
+<td>pos_query</td>
+<td>Embedding(50, 256)</td>
+<td>12,800</td>
+</tr>
+<tr>
+<td><strong>Memory Tokens</strong></td>
+<td><strong>[16, 256]</strong></td>
+<td><strong>4,096</strong></td>
+</tr>
+<tr>
+<td>DecoderLayer ×4</td>
+<td>(每层含 SelfAttn+CrossAttn+FFN)</td>
+<td>~4,000,000</td>
+</tr>
+<tr>
+<td>out_proj</td>
+<td>Linear(256→128) + Linear(128→2)</td>
+<td>33,026</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td></td>
+<td><strong>~4,200,000</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<blockquote>
+<p><strong>总结</strong>：Memory Token 是 Transformer 中一组可学习的"记忆槽位"，在 Self-Attention 中与真实 token 双向交互，实现跨样本、跨时步的知识存储。在 PMSM 控制中，Memory Token 可以隐式学到电机参数、典型工况和约束边界信息。与 CLF-CBF-QP 结合使用时，Transformer 提供快速泛化的参考控制，QP 保证安全约束，两者形成<strong>学习+优化</strong>的互补范式。</p>
+</blockquote>
+</body>
+</html>

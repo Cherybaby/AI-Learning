@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLF_CBF_HOCBF_Notes</title>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'], ['\\(','\\)']],
+    displayMath: [['$$','$$'], ['\\[','\\]']],
+    processEscapes: true,
+  }
+};
+</script>
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --border: #e0e0e0;
+  --code-bg: #f5f5f5;
+  --table-stripe: #fafafa;
+  --link: #1a6fb5;
+  --h1-border: #333;
+  --h2-border: #888;
+  --info-bg: #eef6fc;
+  --info-border: #b8d8f0;
+}
+body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  line-height: 1.8;
+  color: var(--fg);
+  background: var(--bg);
+}
+h1 { font-size: 1.8rem; border-bottom: 2px solid var(--h1-border); padding-bottom: 0.3em; margin-top: 1.8em; }
+h2 { font-size: 1.4rem; border-bottom: 1px solid var(--h2-border); padding-bottom: 0.2em; margin-top: 1.6em; }
+h3 { font-size: 1.15rem; margin-top: 1.4em; }
+h4 { font-size: 1rem; margin-top: 1.2em; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.92em;
+  font-family: "Fira Code", "Source Code Pro", Consolas, monospace;
+}
+pre {
+  background: var(--code-bg);
+  padding: 1em 1.2em;
+  border-radius: 6px;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.55em 0.8em;
+  text-align: left;
+}
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(even) { background: var(--table-stripe); }
+blockquote {
+  border-left: 4px solid var(--info-border);
+  background: var(--info-bg);
+  margin: 1em 0;
+  padding: 0.6em 1em;
+  color: #555;
+}
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+img { max-width: 100%; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --border: #444;
+    --code-bg: #2d2d2d;
+    --table-stripe: #252525;
+    --link: #569cd6;
+    --h1-border: #666;
+    --h2-border: #555;
+    --info-bg: #1a2a3a;
+    --info-border: #2a4a6a;
+  }
+  blockquote { color: #aaa; }
+}
+@media print {
+  body { max-width: 100%; padding: 0; font-size: 11pt; }
+  pre, blockquote { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="clf-cbf-hocbf-qp">李导数 · CLF · CBF · HOCBF · QP — 控制理论进阶笔记</h1>
+<blockquote>
+<p>从数学基础到安全关键控制的完整递进，每个概念配合手算案例，附 PMSM 电机控制实例。</p>
+</blockquote>
+<hr />
+<h2 id="_1">目录</h2>
+<ol>
+<li><a href="#1">数学基础：李导数与控制仿射系统</a></li>
+<li><a href="#2">控制李雅普诺夫函数（CLF）</a></li>
+<li><a href="#3">控制屏障函数（CBF）</a></li>
+<li><a href="#4">CLF-CBF QP 统一框架</a></li>
+<li><a href="#5">高阶 CBF（HOCBF）</a></li>
+<li><a href="#6">PMSM 控制实例</a></li>
+<li><a href="#7">脉络总结</a></li>
+</ol>
+<hr />
+<h2 id="1">1. 数学基础</h2>
+
+<h3 id="11-lie-derivative">1.1 李导数 (Lie Derivative)</h3>
+<p>李导数度量一个标量函数沿向量场方向的变化率。在非线性控制中，它是把系统动力学"代入"到标量函数导数的核心工具。</p>
+<blockquote>
+<p><strong>定义：</strong> 设 <span class="arithmatex">\(h: \mathbb{R}^n \to \mathbb{R}\)</span> 是光滑标量函数，<span class="arithmatex">\(f: \mathbb{R}^n \to \mathbb{R}^n\)</span> 是光滑向量场。则 <span class="arithmatex">\(h\)</span> 沿 <span class="arithmatex">\(f\)</span> 的李导数为：</p>
+<div class="arithmatex">\[L_f h(x) = \frac{\partial h}{\partial x} f(x) = \nabla h(x) \cdot f(x)\]</div>
+</blockquote>
+<p><strong>高阶李导数（递归定义）：</strong></p>
+<div class="arithmatex">\[L_f^0 h(x) = h(x), \qquad L_f^k h(x) = \frac{\partial}{\partial x}\left(L_f^{k-1} h(x)\right) f(x), \quad k \ge 1\]</div>
+<p><strong>混合李导数</strong>（先沿 <span class="arithmatex">\(f\)</span> 再沿 <span class="arithmatex">\(g\)</span>）：</p>
+<div class="arithmatex">\[L_g L_f h(x) = \frac{\partial}{\partial x}\left(L_f h(x)\right) g(x)\]</div>
+<blockquote>
+<p>⚠️ 一般情况 <span class="arithmatex">\(L_g L_f h \neq L_f L_g h\)</span>，不可交换。</p>
+</blockquote>
+<h4 id="1">案例 1：二维系统的李导数手算</h4>
+<blockquote>
+<p>考虑一个简单的 2D 非线性系统：</p>
+<div class="arithmatex">\[f(x) = \begin{bmatrix} x_1 + x_2 \\ -x_1 + x_2 \end{bmatrix}, \qquad h(x) = x_1^2 + x_2^2\]</div>
+<p><strong>Step 1</strong> — 计算 <span class="arithmatex">\(\nabla h\)</span>：</p>
+<div class="arithmatex">\[\nabla h(x) = \begin{bmatrix} \frac{\partial h}{\partial x_1} &amp; \frac{\partial h}{\partial x_2} \end{bmatrix} = \begin{bmatrix} 2x_1 &amp; 2x_2 \end{bmatrix}\]</div>
+<p><strong>Step 2</strong> — 计算 <span class="arithmatex">\(L_f h\)</span>（标量乘向量）：</p>
+<div class="arithmatex">\[L_f h(x) = \nabla h \cdot f = 2x_1(x_1 + x_2) + 2x_2(-x_1 + x_2)\]</div>
+<div class="arithmatex">\[= 2x_1^2 + 2x_1 x_2 - 2x_1 x_2 + 2x_2^2 = 2(x_1^2 + x_2^2) = 2h(x)\]</div>
+<p>这个结果说明：<span class="arithmatex">\(h\)</span> 沿 <span class="arithmatex">\(f\)</span> 方向的变化率恰好是 <span class="arithmatex">\(2h\)</span> 本身——如果 <span class="arithmatex">\(h\)</span> 代表"能量"，那能量在沿 <span class="arithmatex">\(f\)</span> 流动时指数增长。</p>
+</blockquote>
+<h4 id="2">案例 2：混合李导数手算</h4>
+<blockquote>
+<p>在上面的系统上增加一个控制方向 <span class="arithmatex">\(g(x) = \begin{bmatrix} 1 \\ 0 \end{bmatrix}\)</span>：</p>
+<p><strong>Step 1</strong> — 先算 <span class="arithmatex">\(L_f h = 2(x_1^2 + x_2^2)\)</span>（已知）</p>
+<p><strong>Step 2</strong> — 再算 <span class="arithmatex">\(L_g L_f h\)</span>：</p>
+<div class="arithmatex">\[\frac{\partial}{\partial x}(L_f h) = \begin{bmatrix} \frac{\partial}{\partial x_1}(2x_1^2 + 2x_2^2) &amp; \frac{\partial}{\partial x_2}(2x_1^2 + 2x_2^2) \end{bmatrix} = \begin{bmatrix} 4x_1 &amp; 4x_2 \end{bmatrix}\]</div>
+<div class="arithmatex">\[L_g L_f h(x) = \begin{bmatrix} 4x_1 &amp; 4x_2 \end{bmatrix} \begin{bmatrix} 1 \\ 0 \end{bmatrix} = 4x_1\]</div>
+<p><strong>Step 3</strong> — 反过来算 <span class="arithmatex">\(L_f L_g h\)</span> 做对比：</p>
+<div class="arithmatex">\[L_g h = \begin{bmatrix} 2x_1 &amp; 2x_2 \end{bmatrix} \begin{bmatrix} 1 \\ 0 \end{bmatrix} = 2x_1\]</div>
+<div class="arithmatex">\[L_f L_g h = \frac{\partial}{\partial x}(2x_1) \cdot f = \begin{bmatrix} 2 &amp; 0 \end{bmatrix} \begin{bmatrix} x_1 + x_2 \\ -x_1 + x_2 \end{bmatrix} = 2(x_1 + x_2)\]</div>
+<p>显然 <span class="arithmatex">\(L_g L_f h = 4x_1 \neq 2(x_1 + x_2) = L_f L_g h\)</span>，验证了不可交换性。</p>
+<p><strong>直观理解：</strong> 把 <span class="arithmatex">\(f(x)\)</span> 想成"水流方向"，<span class="arithmatex">\(h(x)\)</span> 是"水温"。<span class="arithmatex">\(L_f h\)</span> 就是沿水流方向走时水温变化的快慢——本质上就是方向导数。高阶李导数 <span class="arithmatex">\(L_f^2 h\)</span> 就是"水温变化率的变化率"。</p>
+</blockquote>
+<hr />
+<h3 id="12-control-affine-system">1.2 控制仿射系统 (Control-Affine System)</h3>
+<blockquote>
+<p><strong>定义：</strong> 一个非线性系统能写成 <span class="arithmatex">\(\dot{x} = f(x) + \sum_{i=1}^{m} g_i(x) u_i = f(x) + G(x)u\)</span>，就称为<strong>控制仿射系统</strong>。</p>
+<ul>
+<li><span class="arithmatex">\(x \in \mathbb{R}^n\)</span> — 状态向量</li>
+<li><span class="arithmatex">\(u \in \mathbb{R}^m\)</span> — 控制输入</li>
+<li><span class="arithmatex">\(f(x)\)</span> — <strong>漂移向量场</strong>（drift，不控也会有的部分）</li>
+<li><span class="arithmatex">\(G(x) = [g_1(x) \cdots g_m(x)] \in \mathbb{R}^{n \times m}\)</span> — 控制矩阵</li>
+</ul>
+</blockquote>
+<p>"仿射"的含义：系统关于控制输入 <span class="arithmatex">\(u\)</span> 是<strong>线性的</strong>（有常数偏移项 <span class="arithmatex">\(f(x)\)</span>）。</p>
+<p><strong>为什么要写成仿射形式？</strong> CLF/CBF 要求控制输入以线性方式进入系统，这样约束才能转化为关于 <span class="arithmatex">\(u\)</span> 的<strong>线性不等式</strong>——即 QP 可解。</p>
+<h4 id="3">案例 3：倒立摆写成控制仿射形式</h4>
+<blockquote>
+<p>倒立摆动力学：<span class="arithmatex">\(\ddot{\theta} = \frac{g}{l}\sin\theta + \frac{1}{ml^2} u\)</span></p>
+<p><strong>Step 1</strong> — 定义状态 <span class="arithmatex">\(x = [\theta,\; \dot{\theta}]^\top\)</span>，得 <span class="arithmatex">\(\dot{x}_1 = x_2\)</span>，<span class="arithmatex">\(\dot{x}_2 = \frac{g}{l}\sin x_1 + \frac{1}{ml^2} u\)</span></p>
+<p><strong>Step 2</strong> — 写成仿射形式：</p>
+<div class="arithmatex">\[f(x) = \begin{bmatrix} x_2 \\ \frac{g}{l}\sin x_1 \end{bmatrix}, \qquad G(x) = \begin{bmatrix} 0 \\ \frac{1}{ml^2} \end{bmatrix}\]</div>
+<p>这是单输入 (<span class="arithmatex">\(m=1\)</span>) 仿射系统。注意非线性 <span class="arithmatex">\(\sin x_1\)</span> 被包在 <span class="arithmatex">\(f(x)\)</span> 里。</p>
+</blockquote>
+<h4 id="4pmsm">案例 4：PMSM 写成控制仿射形式</h4>
+<blockquote>
+<p>状态 <span class="arithmatex">\(x = [i_d, i_q, \omega_m]^\top\)</span>，输入 <span class="arithmatex">\(u = [u_d, u_q]^\top\)</span>：</p>
+<div class="arithmatex">\[f(x) = \begin{bmatrix} -\frac{R_s}{L_s}i_d + p\omega_m i_q \\ -\frac{R_s}{L_s}i_q - p\omega_m i_d - \frac{\psi_f}{L_s}p\omega_m \\ \frac{1}{J}(K_t i_q - T_L - B\omega_m) \end{bmatrix}, \quad G(x) = \begin{bmatrix} \frac{1}{L_s} &amp; 0 \\ 0 &amp; \frac{1}{L_s} \\ 0 &amp; 0 \end{bmatrix}\]</div>
+<p>这是双输入 (<span class="arithmatex">\(m=2\)</span>) 仿射系统。关键观察：<span class="arithmatex">\(G\)</span> 的第三行全为 0——电压不能<strong>直接</strong>改变转速（<span class="arithmatex">\(r=2\)</span>）。</p>
+<p><strong>关键性质：</strong> 对控制仿射系统，标量函数 <span class="arithmatex">\(h(x)\)</span> 的全导数为：</p>
+<div class="arithmatex">\[\dot{h}(x) = L_f h(x) + \underbrace{L_G h(x)}_{\text{行向量}} \cdot u\]</div>
+<p><span class="arithmatex">\(\dot{h}\)</span> 关于 <span class="arithmatex">\(u\)</span> 是<strong>仿射</strong>的（线性 + 常数项），这是后续所有 QP 约束为线性的保证。</p>
+</blockquote>
+<hr />
+<h2 id="2">2. 控制李雅普诺夫函数（CLF）—— 稳定性</h2>
+
+<h3 id="21-clf">2.1 从经典李雅普诺夫到 CLF</h3>
+<p>经典：找 <span class="arithmatex">\(V(x) \succ 0\)</span>，使得 <span class="arithmatex">\(\dot{V}(x) \prec 0\)</span>。但对控制系统，我们可以<strong>选</strong> <span class="arithmatex">\(u\)</span> 来强制 <span class="arithmatex">\(\dot{V} \prec 0\)</span>。</p>
+<blockquote>
+<p><strong>定义（CLF）：</strong> 对 <span class="arithmatex">\(\dot{x} = f(x) + G(x)u\)</span>，连续可微、正定、径向无界的 <span class="arithmatex">\(V\)</span> 是 CLF 当：</p>
+<div class="arithmatex">\[\inf_{u \in \mathbb{R}^m} \left[ L_f V(x) + L_G V(x) \cdot u \right] &lt; 0, \quad \forall x \neq 0\]</div>
+<p>即：<strong>存在</strong>某个 <span class="arithmatex">\(u\)</span> 能让 <span class="arithmatex">\(V\)</span> 下降。</p>
+</blockquote>
+<h4 id="5-clf">案例 5：一维标量系统的 CLF 手算</h4>
+<blockquote>
+<p>考虑最简单的标量系统 <span class="arithmatex">\(\dot{x} = -x + u\)</span>（注意这里 <span class="arithmatex">\(f(x) = -x\)</span>, <span class="arithmatex">\(g(x) = 1\)</span>）：</p>
+<p>选候选 <span class="arithmatex">\(V(x) = \frac{1}{2}x^2\)</span>，计算：</p>
+<div class="arithmatex">\[L_f V = \frac{\partial V}{\partial x} f(x) = x \cdot (-x) = -x^2\]</div>
+<div class="arithmatex">\[L_G V = \frac{\partial V}{\partial x} G(x) = x \cdot 1 = x\]</div>
+<p>CLF 条件：<span class="arithmatex">\(\inf_u [-x^2 + x \cdot u] &lt; 0\)</span> 对所有 <span class="arithmatex">\(x \neq 0\)</span> 成立。</p>
+<ul>
+<li>若选 <span class="arithmatex">\(u = 0\)</span>：<span class="arithmatex">\(\dot{V} = -x^2 &lt; 0\)</span> ✅（漂移本身就稳定）</li>
+<li>若选 <span class="arithmatex">\(u = -kx\)</span>：<span class="arithmatex">\(\dot{V} = -x^2 - kx^2 = -(1+k)x^2 &lt; 0\)</span> ✅（控制加速收敛）</li>
+</ul>
+<p>所以 <span class="arithmatex">\(V = \frac{1}{2}x^2\)</span> 是 CLF。即使 <span class="arithmatex">\(f(x)\)</span> 让系统发散，只要 <span class="arithmatex">\(G(x) \neq 0\)</span> 能给一个"拉回来"的方向，就存在 CLF。</p>
+</blockquote>
+<h3 id="22-clf-qp">2.2 CLF-QP</h3>
+<p>将 CLF 条件松弛为不等式约束，并加入控制代价最小的优化目标：</p>
+<blockquote>
+<p><strong>CLF-QP 问题：</strong></p>
+<div class="arithmatex">\[\begin{aligned} u^* = \argmin_{u,\; \delta} \quad &amp; \frac{1}{2} u^\top H u + p \cdot \delta^2 \\ \text{s.t.} \quad &amp; L_f V(x) + L_G V(x) \cdot u \le -\gamma V(x) + \delta \\ &amp; u \in \mathcal{U} \end{aligned}\]</div>
+<ul>
+<li><span class="arithmatex">\(\gamma &gt; 0\)</span> — 收敛速率</li>
+<li><span class="arithmatex">\(\delta \ge 0\)</span> — <strong>松弛变量</strong>（slack），让 CLF 约束在冲突时可被"违反"</li>
+<li><span class="arithmatex">\(p &gt; 0\)</span> — 惩罚系数，越大越不愿违反 CLF</li>
+</ul>
+<p><strong>为什么需要 <span class="arithmatex">\(\delta\)</span>？</strong> 当 CLF 和 CBF 冲突时（急刹车稳住速度 vs 急刹车撞墙），CLF 是<strong>软约束</strong>——可以暂时牺牲稳定性来保安全。</p>
+</blockquote>
+<h4 id="6clf-qp">案例 6：CLF-QP 的数值手算</h4>
+<blockquote>
+<p>设系统 <span class="arithmatex">\(\dot{x} = 2x + u\)</span>（漂移发散！），<span class="arithmatex">\(V = \frac{1}{2}x^2\)</span>，<span class="arithmatex">\(\gamma = 1\)</span>，<span class="arithmatex">\(p = 10\)</span>，<span class="arithmatex">\(H = 1\)</span>，当前 <span class="arithmatex">\(x = 3\)</span>。</p>
+<p><strong>Step 1</strong> — 算 <span class="arithmatex">\(L_f V\)</span> 和 <span class="arithmatex">\(L_G V\)</span>：</p>
+<div class="arithmatex">\[L_f V = x \cdot 2x = 2x^2 = 18, \qquad L_G V = x \cdot 1 = 3\]</div>
+<p><strong>Step 2</strong> — 写出 QP（注意这里 CLF 约束是 <span class="arithmatex">\(L_f V + L_G V \cdot u \le -\gamma V + \delta\)</span>）：</p>
+<div class="arithmatex">\[\min_{u, \delta} \; \frac{1}{2}u^2 + 10\delta^2 \quad \text{s.t.} \quad 18 + 3u \le -4.5 + \delta\]</div>
+<p>整理：<span class="arithmatex">\(3u - \delta \le -22.5\)</span></p>
+<p>若无 <span class="arithmatex">\(\delta\)</span>（<span class="arithmatex">\(\delta\)</span> 固定为 0）：<span class="arithmatex">\(3u \le -22.5 \Rightarrow u \le -7.5\)</span>，最优解是 <span class="arithmatex">\(u = -7.5\)</span>。</p>
+<p>有 <span class="arithmatex">\(\delta\)</span>：可以选更大的 <span class="arithmatex">\(u\)</span>（消耗更少控制能量），但牺牲 <span class="arithmatex">\(\delta\)</span>（付出惩罚）。这就是软约束的本质：<strong>在控制代价和稳定速度之间做权衡</strong>。</p>
+</blockquote>
+<hr />
+<h2 id="3">3. 控制屏障函数（CBF）—— 安全性</h2>
+
+<h3 id="31">3.1 安全集</h3>
+<blockquote>
+<p><strong>安全集：</strong> <span class="arithmatex">\(h(x) \ge 0\)</span> 定义了一个"安全区域" <span class="arithmatex">\(\mathcal{C}\)</span>。</p>
+<ul>
+<li><span class="arithmatex">\(\mathcal{C} = \{x \mid h(x) \ge 0\}\)</span> — 安全集</li>
+<li><span class="arithmatex">\(\partial\mathcal{C} = \{x \mid h(x) = 0\}\)</span> — 安全边界</li>
+<li><strong>前向不变</strong>：从 <span class="arithmatex">\(\mathcal{C}\)</span> 内部出发，永远不离开 <span class="arithmatex">\(\mathcal{C}\)</span></li>
+</ul>
+<p><strong>定义（CBF）：</strong> 若 <span class="arithmatex">\(h(x)\)</span> 的相对度为 1（<span class="arithmatex">\(L_G h(x) \neq 0\)</span>），则 <span class="arithmatex">\(h\)</span> 是 CBF 当存在 <span class="arithmatex">\(\mathcal{K}_{\infty}^e\)</span> 类函数 <span class="arithmatex">\(\alpha\)</span> 使得：</p>
+<div class="arithmatex">\[\sup_{u} \left[ L_f h(x) + L_G h(x) \cdot u \right] \ge -\alpha(h(x))\]</div>
+<p>即存在 <span class="arithmatex">\(u\)</span> 能满足 <span class="arithmatex">\(\dot{h}(x) \ge -\alpha(h(x))\)</span>。</p>
+</blockquote>
+<p>安全控制器集合：</p>
+<div class="arithmatex">\[K_{\text{cbf}}(x) = \left\{ u \mid L_f h(x) + L_G h(x) \cdot u \ge -\alpha(h(x)) \right\}\]</div>
+<p>约束含义：<span class="arithmatex">\(\dot{h} \ge -\alpha(h)\)</span></p>
+<ul>
+<li>当 <span class="arithmatex">\(h\)</span> 很大（远离边界）→ 约束松，<span class="arithmatex">\(\dot{h}\)</span> 可以很负</li>
+<li>当 <span class="arithmatex">\(h \to 0\)</span>（靠近边界）→ <span class="arithmatex">\(\alpha(h) \to 0\)</span>，必须 <span class="arithmatex">\(\dot{h} \ge 0\)</span>（不能再靠近边界）</li>
+</ul>
+<h4 id="7-cbf">案例 7：一维速度限制 CBF 手算</h4>
+<blockquote>
+<p>系统：<span class="arithmatex">\(\dot{x} = u\)</span>（一阶积分器，<span class="arithmatex">\(f(x) = 0\)</span>, <span class="arithmatex">\(G(x) = 1\)</span>），安全约束 <span class="arithmatex">\(x \le 10\)</span>。</p>
+<p><span class="arithmatex">\(h(x) = 10 - x\)</span></p>
+<div class="arithmatex">\[L_f h = \frac{\partial h}{\partial x} \cdot f = (-1) \cdot 0 = 0$$
+$$L_G h = \frac{\partial h}{\partial x} \cdot G = (-1) \cdot 1 = -1 \neq 0 \quad \Rightarrow \quad r=1\]</div>
+<p>CBF 约束（取 <span class="arithmatex">\(\alpha(s) = \gamma s\)</span>）：</p>
+<div class="arithmatex">\[0 + (-1) \cdot u \ge -\gamma(10 - x) \quad \Rightarrow \quad u \le \gamma(10 - x)\]</div>
+<p><strong>物理含义：</strong> 当 <span class="arithmatex">\(x=9\)</span>（离边界 1 单位）→ <span class="arithmatex">\(u \le \gamma\)</span>；当 <span class="arithmatex">\(x=9.9\)</span>（离边界 0.1）→ <span class="arithmatex">\(u \le 0.1\gamma\)</span>。越靠近上限，允许的速度越小——这正是"安全减速"的数学表达。</p>
+</blockquote>
+<h4 id="8alpha">案例 8：<span class="arithmatex">\(\alpha\)</span> 函数效果的数值对比</h4>
+<blockquote>
+<p>系统同上，<span class="arithmatex">\(x=8\)</span>（<span class="arithmatex">\(h=2\)</span>）：</p>
+<table>
+<thead>
+<tr>
+<th><span class="arithmatex">\(\alpha(s)\)</span></th>
+<th>CBF 约束</th>
+<th><span class="arithmatex">\(u\)</span> 上限</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(\gamma s\)</span> (<span class="arithmatex">\(\gamma=2\)</span>)</td>
+<td><span class="arithmatex">\(u \le 2 \times 2 = 4\)</span></td>
+<td>4</td>
+<td>线性减速</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\gamma s^2\)</span> (<span class="arithmatex">\(\gamma=2\)</span>)</td>
+<td><span class="arithmatex">\(u \le 2 \times 4 = 8\)</span></td>
+<td>8</td>
+<td>离边界远时约束更松</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\gamma s\)</span> (<span class="arithmatex">\(\gamma=5\)</span>)</td>
+<td><span class="arithmatex">\(u \le 5 \times 2 = 10\)</span></td>
+<td>10</td>
+<td>更大的 <span class="arithmatex">\(\gamma\)</span> → 约束更激进</td>
+</tr>
+</tbody>
+</table>
+<p>⚠️ <strong>核心前提：相对度必须为 1！</strong> 如果 <span class="arithmatex">\(L_G h = 0\)</span>（<span class="arithmatex">\(u\)</span> 不能直接影响 <span class="arithmatex">\(\dot{h}\)</span>），标准 CBF 失效，需要<strong>HOCBF</strong>。</p>
+</blockquote>
+<hr />
+<h2 id="4">4. CLF-CBF QP 统一框架</h2>
+
+<blockquote>
+<p><strong>CLF-CBF QP：</strong></p>
+<div class="arithmatex">\[\begin{aligned} u^* = \argmin_{u,\; \delta} \quad &amp; \frac{1}{2} (u - u_{\text{nom}})^\top H (u - u_{\text{nom}}) + p \cdot \delta^2 \\ \text{s.t.} \quad &amp; \underbrace{L_f V + L_G V \cdot u \le -\gamma_v V + \delta}_{\text{CLF（软）}} \\ &amp; \underbrace{L_f h + L_G h \cdot u \ge -\gamma_h h}_{\text{CBF（硬）}} \\ &amp; u_{\min} \le u \le u_{\max} \end{aligned}\]</div>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>类型</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLF 约束</td>
+<td>软约束（有 <span class="arithmatex">\(\delta\)</span>）</td>
+<td>保证（可松弛的）稳定性</td>
+</tr>
+<tr>
+<td>CBF 约束</td>
+<td>硬约束</td>
+<td>保证安全性，不可违反</td>
+</tr>
+<tr>
+<td>输入约束</td>
+<td>硬约束</td>
+<td>物理极限（电压/电流上限）</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(u_{\text{nom}}\)</span></td>
+<td>参考</td>
+<td>标称控制器输出（如 PID 给出的期望值）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>核心哲学：</strong> CLF-CBF QP 是一个<strong>安全过滤器</strong>——接收标称控制 <span class="arithmatex">\(u_{\text{nom}}\)</span>，在满足安全和输入约束下，输出最接近 <span class="arithmatex">\(u_{\text{nom}}\)</span> 的指令。凸 QP 可在微秒级求解。</p>
+</blockquote>
+<h4 id="9-clf-cbf">案例 9：冲突场景 —— 为什么 CLF 必须软、CBF 必须硬</h4>
+<blockquote>
+<p>自动驾驶场景：<br />
+- 标称 PID 要加速到 80 km/h（CLF 驱动）<br />
+- 前方 10m 有障碍物（CBF 约束 <span class="arithmatex">\(h = d - d_{\min} \ge 0\)</span>）</p>
+<p>若 CLF 也是硬约束：必须加速 → 必须降速 → <strong>不可行（QP 无解）→ 系统崩溃</strong></p>
+<p>软 CLF：允许暂时偏离目标速度（<span class="arithmatex">\(\delta &gt; 0\)</span>），先满足 CBF 刹停 → 障碍物清除后恢复加速。</p>
+<p><strong>这就是 <span class="arithmatex">\(\delta\)</span> 的存在意义：安全优先，稳定让步。</strong></p>
+</blockquote>
+<hr />
+<h2 id="5">5. 高阶 CBF（HOCBF）—— 解决相对度 &gt; 1</h2>
+
+<h3 id="51">5.1 相对度详解</h3>
+<blockquote>
+<p><strong>相对度 (Relative Degree)：</strong> 控制输入 <span class="arithmatex">\(u\)</span> 第一次出现在 <span class="arithmatex">\(\dot{h}\)</span> 的哪一阶导数中。</p>
+<div class="arithmatex">\[L_G h = 0,\; L_G L_f h = 0,\; \dots,\; L_G L_f^{r-1} h \neq 0\]</div>
+</blockquote>
+<h4 id="10">案例 10：三种相对度的直观例子</h4>
+<blockquote>
+<p>系统 <span class="arithmatex">\(\ddot{x} = u\)</span>（<span class="arithmatex">\(x\)</span> 是位置，<span class="arithmatex">\(u\)</span> 是力/加速度）：</p>
+<table>
+<thead>
+<tr>
+<th>约束</th>
+<th><span class="arithmatex">\(h(x)\)</span></th>
+<th><span class="arithmatex">\(\dot{h}\)</span></th>
+<th><span class="arithmatex">\(\ddot{h}\)</span></th>
+<th><span class="arithmatex">\(r\)</span></th>
+<th>工具</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入限幅</td>
+<td><span class="arithmatex">\(u_{\max} - u\)</span></td>
+<td>—</td>
+<td>—</td>
+<td>0</td>
+<td>Box 约束</td>
+</tr>
+<tr>
+<td>速度限制</td>
+<td><span class="arithmatex">\(v_{\max} - \dot{x}\)</span></td>
+<td><span class="arithmatex">\(-\ddot{x} = -u\)</span></td>
+<td>—</td>
+<td>1</td>
+<td>CBF</td>
+</tr>
+<tr>
+<td>位置限制</td>
+<td><span class="arithmatex">\(x_{\max} - x\)</span></td>
+<td><span class="arithmatex">\(-\dot{x}\)</span>（无 <span class="arithmatex">\(u\)</span>！）</td>
+<td><span class="arithmatex">\(-u\)</span></td>
+<td>2</td>
+<td>HOCBF</td>
+</tr>
+</tbody>
+</table>
+<p>位置约束 <span class="arithmatex">\(r=2\)</span> 是最经典的 HOCBF 场景：你不能直接"推"位置，只能通过加速度间接影响。</p>
+</blockquote>
+<h3 id="52-hocbf">5.2 HOCBF 构造（逐层回退）</h3>
+<blockquote>
+<p>设 <span class="arithmatex">\(h(x)\)</span> 相对度为 <span class="arithmatex">\(r\)</span>，定义序列：</p>
+<div class="arithmatex">\[\begin{aligned} \psi_0(x) &amp;:= h(x) \\ \psi_1(x) &amp;:= \dot{\psi}_0 + \alpha_1(\psi_0) = \dot{h} + \alpha_1(h) \\ \psi_2(x) &amp;:= \dot{\psi}_1 + \alpha_2(\psi_1) \\ \vdots \\ \psi_r(x) &amp;:= \dot{\psi}_{r-1} + \alpha_r(\psi_{r-1}) \end{aligned}\]</div>
+<p>若存在 <span class="arithmatex">\(u\)</span> 使 <span class="arithmatex">\(\psi_r(x) \ge 0\)</span>，则 <span class="arithmatex">\(h(x)\)</span> 是 <strong>HOCBF</strong>。</p>
+</blockquote>
+<p><strong>以 <span class="arithmatex">\(r=2\)</span> 为例的关键展开（最常用）：</strong></p>
+<p>选 <span class="arithmatex">\(\alpha_1(s) = \gamma_1 s\)</span>, <span class="arithmatex">\(\alpha_2(s) = \gamma_2 s\)</span>：</p>
+<div class="arithmatex">\[\begin{aligned} \psi_0 &amp;= h \\ \psi_1 &amp;= \dot{h} + \gamma_1 h \\ \psi_2 &amp;= \ddot{h} + \gamma_1 \dot{h} + \gamma_2(\dot{h} + \gamma_1 h) = \ddot{h} + (\gamma_1 + \gamma_2)\dot{h} + \gamma_1\gamma_2 h \ge 0 \end{aligned}\]</div>
+<p>代入 <span class="arithmatex">\(\ddot{h} = L_f^2 h + L_G L_f h \cdot u\)</span>，得<strong>线性约束</strong>：</p>
+<div class="arithmatex">\[L_G L_f h(x) \cdot u \ge -L_f^2 h(x) - (\gamma_1 + \gamma_2)\dot{h}(x) - \gamma_1\gamma_2 h(x)\]</div>
+<h4 id="11-hocbf-pmsm">案例 11：位置限制 HOCBF 完整手算（对应 PMSM 速度限制）</h4>
+<blockquote>
+<p>系统 <span class="arithmatex">\(\ddot{x} = u\)</span>（状态 <span class="arithmatex">\(x_1 = x\)</span>, <span class="arithmatex">\(x_2 = \dot{x}\)</span>），约束 <span class="arithmatex">\(x \le x_{\max}\)</span>。</p>
+<p>写成仿射形式：<span class="arithmatex">\(f = [x_2,\; 0]^\top\)</span>, <span class="arithmatex">\(G = [0,\; 1]^\top\)</span></p>
+<p><strong>Step 1</strong> — <span class="arithmatex">\(h(x) = x_{\max} - x_1\)</span>，检查相对度：</p>
+<div class="arithmatex">\[\dot{h} = -\dot{x}_1 = -x_2$$
+$$L_G h = \nabla h \cdot G = [-1, 0] \cdot [0, 1]^\top = 0 \quad \text{→ } u \text{ 不出现！}\]</div>
+<p><strong>Step 2</strong> — 继续求导：</p>
+<div class="arithmatex">\[\ddot{h} = -\ddot{x}_1 = -u$$
+$$L_G L_f h = \frac{\partial}{\partial x}(\dot{h}) \cdot G = [0, -1] \cdot [0, 1]^\top = -1 \neq 0 \quad \text{→ } r=2\]</div>
+<p><strong>Step 3</strong> — 构造 HOCBF，取 <span class="arithmatex">\(\gamma_1 = \gamma_2 = 5\)</span>：</p>
+<div class="arithmatex">\[\psi_0 = h = x_{\max} - x_1$$
+$$\psi_1 = \dot{h} + 5h = -x_2 + 5(x_{\max} - x_1)$$
+$$\psi_2 = \ddot{h} + 5\dot{h} + 5\psi_1 = -u + 5(-x_2) + 5[-x_2 + 5(x_{\max} - x_1)] \ge 0\]</div>
+<p>整理：<span class="arithmatex">\(-u - 10x_2 + 25(x_{\max} - x_1) \ge 0\)</span></p>
+<p><strong>最终线性约束：</strong></p>
+<div class="arithmatex">\[u \le 25(x_{\max} - x_1) - 10x_2\]</div>
+<p><strong>物理含义验证：</strong><br />
+- <span class="arithmatex">\(x_1\)</span> 离 <span class="arithmatex">\(x_{\max}\)</span> 远（<span class="arithmatex">\(h\)</span> 大）→ <span class="arithmatex">\(u\)</span> 上限大（允许更大加速度）<br />
+- <span class="arithmatex">\(x_2 &gt; 0\)</span>（正在靠近边界）→ <span class="arithmatex">\(u\)</span> 上限减小（需要减速）<br />
+- <span class="arithmatex">\(x_2 &lt; 0\)</span>（正在远离边界）→ <span class="arithmatex">\(u\)</span> 上限增大（可以加速）</p>
+</blockquote>
+<h3 id="53-hocbf">5.3 HOCBF 参数选择</h3>
+<blockquote>
+<p>特征方程 <span class="arithmatex">\(s^r + c_1 s^{r-1} + \cdots + c_r = 0\)</span> 的根应在 <span class="arithmatex">\(-5\)</span> 到 <span class="arithmatex">\(-20\)</span> 之间。</p>
+<p>对 <span class="arithmatex">\(r=2\)</span>：<span class="arithmatex">\(s^2 + (\gamma_1 + \gamma_2)s + \gamma_1\gamma_2 = 0\)</span></p>
+<p>例：<span class="arithmatex">\(\gamma_1 = \gamma_2 = 10\)</span> → 二重根 <span class="arithmatex">\(-10\)</span>，适合大多数场景。</p>
+</blockquote>
+<hr />
+<h2 id="6">6. PMSM 控制实例</h2>
+
+<h3 id="61-pmsm">6.1 PMSM 数学模型</h3>
+<p>表贴式 PMSM（<span class="arithmatex">\(L_d = L_q = L_s\)</span>），状态 <span class="arithmatex">\(x = [i_d,\; i_q,\; \omega_m]^\top\)</span>，输入 <span class="arithmatex">\(u = [u_d,\; u_q]^\top\)</span>：</p>
+<div class="arithmatex">\[\begin{aligned} \frac{di_d}{dt} &amp;= -\frac{R_s}{L_s} i_d + p\omega_m i_q + \frac{1}{L_s} u_d \\[6pt] \frac{di_q}{dt} &amp;= -\frac{R_s}{L_s} i_q - p\omega_m i_d - \frac{\psi_f}{L_s} p\omega_m + \frac{1}{L_s} u_q \\[6pt] \frac{d\omega_m}{dt} &amp;= \frac{1}{J}\left( K_t i_q - T_L - B\omega_m \right) \end{aligned}\]</div>
+<p>其中 <span class="arithmatex">\(K_t = \frac{3}{2} p \psi_f\)</span>。</p>
+<blockquote>
+<p><strong>控制仿射形式</strong> <span class="arithmatex">\(\dot{x} = f(x) + G(x)u\)</span>：</p>
+<div class="arithmatex">\[f(x) = \begin{bmatrix} -\frac{R_s}{L_s} i_d + p\omega_m i_q \\[4pt] -\frac{R_s}{L_s} i_q - p\omega_m i_d - \frac{\psi_f}{L_s} p\omega_m \\[4pt] \frac{1}{J}(K_t i_q - T_L - B\omega_m) \end{bmatrix}, \quad G(x) = \begin{bmatrix} \frac{1}{L_s} &amp; 0 \\[4pt] 0 &amp; \frac{1}{L_s} \\[4pt] 0 &amp; 0 \end{bmatrix}\]</div>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>含义</th>
+<th>符号</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(i_d, i_q\)</span></td>
+<td>d/q 轴电流</td>
+<td><span class="arithmatex">\(R_s\)</span></td>
+<td>定子电阻</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(u_d, u_q\)</span></td>
+<td>d/q 轴电压（控制输入）</td>
+<td><span class="arithmatex">\(L_s\)</span></td>
+<td>定子电感</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\omega_m\)</span></td>
+<td>机械角速度</td>
+<td><span class="arithmatex">\(\psi_f\)</span></td>
+<td>永磁磁链</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(p\)</span></td>
+<td>极对数</td>
+<td><span class="arithmatex">\(J\)</span></td>
+<td>转动惯量</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(T_L\)</span></td>
+<td>负载转矩</td>
+<td><span class="arithmatex">\(B\)</span></td>
+<td>粘滞摩擦系数</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62-hocbfr2">6.2 速度限制 → HOCBF（<span class="arithmatex">\(r=2\)</span>）</h3>
+<blockquote>
+<p><strong>约束：</strong> <span class="arithmatex">\(\omega_m \le \omega_{\max}\)</span></p>
+<p><strong>Step 1</strong> — <span class="arithmatex">\(h_\omega(x) = \omega_{\max} - \omega_m\)</span></p>
+<div class="arithmatex">\[\dot{h}_\omega = -\dot{\omega}_m = -\frac{1}{J}(K_t i_q - T_L - B\omega_m)\]</div>
+<p><span class="arithmatex">\(L_G h_\omega = [0,\; 0]\)</span> — <strong><span class="arithmatex">\(u\)</span> 不出现 → <span class="arithmatex">\(r=2\)</span>，需要 HOCBF！</strong></p>
+<p><strong>Step 2</strong> — 计算 <span class="arithmatex">\(\ddot{h}_\omega\)</span>：</p>
+<div class="arithmatex">\[\ddot{h}_\omega = -\frac{1}{J}\left(K_t \dot{i}_q - B\dot{\omega}_m\right) = -\frac{1}{J}\left[ K_t\left(-\frac{R_s}{L_s}i_q - p\omega_m i_d - \frac{\psi_f}{L_s}p\omega_m + \frac{u_q}{L_s}\right) - B\dot{\omega}_m \right]\]</div>
+<p><span class="arithmatex">\(L_G L_f h_\omega = \left[0,\; -\frac{K_t}{J L_s}\right] \neq 0\)</span> — <span class="arithmatex">\(u_q\)</span> 出现！验证 <span class="arithmatex">\(r=2\)</span>。</p>
+<p><strong>Step 3</strong> — HOCBF 约束：</p>
+<div class="arithmatex">\[\psi_0 = h_\omega, \quad \psi_1 = \dot{h}_\omega + \gamma_1 h_\omega, \quad \psi_2 = \ddot{h}_\omega + \gamma_1 \dot{h}_\omega + \gamma_2 \psi_1 \ge 0\]</div>
+<p>展开为 <span class="arithmatex">\(u_q\)</span> 的<strong>线性不等式</strong>：</p>
+<div class="arithmatex">\[\boxed{-\frac{K_t}{J L_s} u_q \ge \frac{K_t}{J}\left(\frac{R_s}{L_s}i_q + p\omega_m i_d + \frac{\psi_f}{L_s}p\omega_m\right) + \frac{B}{J}\dot{\omega}_m - \gamma_1 \dot{h}_\omega - \gamma_2 \psi_1}\]</div>
+</blockquote>
+<h4 id="hocbf">数值案例（速度 HOCBF）</h4>
+<blockquote>
+<p>设 PMSM 参数：<span class="arithmatex">\(R_s = 0.5\,\Omega\)</span>, <span class="arithmatex">\(L_s = 5\,\text{mH}\)</span>, <span class="arithmatex">\(p = 4\)</span>, <span class="arithmatex">\(\psi_f = 0.1\,\text{Wb}\)</span>, <span class="arithmatex">\(J = 0.001\,\text{kg·m}^2\)</span>, <span class="arithmatex">\(B = 0.0001\)</span>, <span class="arithmatex">\(K_t = 0.6\)</span></p>
+<p>当前状态：<span class="arithmatex">\(i_d = 0\)</span>, <span class="arithmatex">\(i_q = 2\,\text{A}\)</span>, <span class="arithmatex">\(\omega_m = 2800\,\text{rpm} \approx 293\,\text{rad/s}\)</span>, <span class="arithmatex">\(T_L = 0.1\,\text{N·m}\)</span></p>
+<p>速度上限 <span class="arithmatex">\(\omega_{\max} = 3000\,\text{rpm} \approx 314\,\text{rad/s}\)</span></p>
+<p><strong>Step 1</strong> — <span class="arithmatex">\(h_\omega = 314 - 293 = 21\)</span></p>
+<div class="arithmatex">\[\dot{\omega}_m = \frac{1}{0.001}(0.6 \times 2 - 0.1 - 0.0001 \times 293) = 1070.7$$
+$$\dot{h}_\omega = -1070.7 \quad \text{→ 转速正在上升，靠近上限！}\]</div>
+<p><strong>Step 2</strong> — 取 <span class="arithmatex">\(\gamma_1 = \gamma_2 = 10\)</span>：</p>
+<div class="arithmatex">\[\psi_1 = -1070.7 + 10 \times 21 = -860.7\]</div>
+<p>HOCBF 约束最终展开为 <span class="arithmatex">\(u_q \le a \cdot h_\omega + b \cdot \dot{h}_\omega + \cdots\)</span></p>
+<p>因为 <span class="arithmatex">\(\dot{h}_\omega\)</span> 很负（-1070），速度上升很快，HOCBF 会对 <span class="arithmatex">\(u_q\)</span> 施加一个很强的上界，迫使系统减速。</p>
+</blockquote>
+<h3 id="63-cbfr1">6.3 电流限制 → CBF（<span class="arithmatex">\(r=1\)</span>）</h3>
+<h4 id="a">方式 A：单轴上限</h4>
+<blockquote>
+<p><strong>约束：</strong> <span class="arithmatex">\(i_q \le i_{q,\max}\)</span></p>
+<div class="arithmatex">\[h_{iq} = i_{q,\max} - i_q\]</div>
+<div class="arithmatex">\[\dot{h}_{iq} = -\dot{i}_q = \frac{R_s}{L_s}i_q + p\omega_m i_d + \frac{\psi_f}{L_s}p\omega_m - \frac{1}{L_s}u_q\]</div>
+<p><span class="arithmatex">\(L_G h_{iq} = [0,\; -1/L_s] \neq 0\)</span> → <span class="arithmatex">\(r=1\)</span>，用 CBF：</p>
+<div class="arithmatex">\[\boxed{-\frac{1}{L_s} u_q \ge -\frac{R_s}{L_s}i_q - p\omega_m i_d - \frac{\psi_f}{L_s}p\omega_m - \gamma_{iq} h_{iq}}\]</div>
+</blockquote>
+<h4 id="b">方式 B：电流幅值圆约束</h4>
+<blockquote>
+<p><strong>约束：</strong> <span class="arithmatex">\(i_d^2 + i_q^2 \le I_{\max}^2\)</span></p>
+<div class="arithmatex">\[h_I(x) = I_{\max}^2 - (i_d^2 + i_q^2)\]</div>
+<div class="arithmatex">\[\dot{h}_I = -2i_d \dot{i}_d - 2i_q \dot{i}_q, \quad L_G h_I = \begin{bmatrix} -\frac{2i_d}{L_s}, &amp; -\frac{2i_q}{L_s} \end{bmatrix}\]</div>
+<p>只要 <span class="arithmatex">\([i_d, i_q] \neq [0, 0]\)</span>，<span class="arithmatex">\(r=1\)</span>：</p>
+<div class="arithmatex">\[\boxed{-\frac{2i_d}{L_s} u_d - \frac{2i_q}{L_s} u_q \ge -\dot{h}_I\big|_{u=0} - \gamma_I h_I}\]</div>
+<p>方式 B 同时约束 d/q 轴，限制总电流幅值（防止过流烧毁），比分别限制更符合物理实际。</p>
+</blockquote>
+<h4 id="12-cbf">案例 12：电流 CBF 数值手算</h4>
+<blockquote>
+<p>续案例 11 参数，<span class="arithmatex">\(i_q = 2\,\text{A}\)</span>, <span class="arithmatex">\(i_{q,\max} = 5\,\text{A}\)</span>, <span class="arithmatex">\(h_{iq} = 3\)</span>, <span class="arithmatex">\(\gamma_{iq} = 10\)</span>：</p>
+<div class="arithmatex">\[\dot{h}_{iq}|_{u=0} = \frac{0.5}{0.005} \times 2 + 4 \times 293 \times 0 + \frac{0.1}{0.005} \times 4 \times 293 = 200 + 0 + 23440 = 23640\]</div>
+<p>CBF 约束：<span class="arithmatex">\(-200 \cdot u_q \ge -23640 - 10 \times 3 = -23670\)</span>，即 <span class="arithmatex">\(u_q \le 118.35\)</span></p>
+<p>这个上界很大（远大于额定电压），说明当前 <span class="arithmatex">\(i_q = 2\)</span> 离 <span class="arithmatex">\(5\)</span> 还远，电流 CBF 约束很松——这正是我们期望的：离边界越远，约束越不活跃。</p>
+</blockquote>
+<h3 id="64-qp-box">6.4 电压限制 → QP Box 约束</h3>
+<blockquote>
+<p><strong>约束：</strong> <span class="arithmatex">\(|u_d| \le U_{\max},\; |u_q| \le U_{\max}\)</span></p>
+<p>这是<strong>输入硬约束</strong>，直接放在 QP 的 bounds 里：</p>
+<div class="arithmatex">\[\boxed{-U_{\max} \le u_d \le U_{\max}, \quad -U_{\max} \le u_q \le U_{\max}}\]</div>
+<p>电压圆约束 <span class="arithmatex">\(u_d^2 + u_q^2 \le U_{\max}^2\)</span> 不是线性的——可做八角形近似，或用 CBF 化到下一层：<span class="arithmatex">\(h_u(x) = U_{\max}^2 - (u_d^2 + u_q^2)\)</span>。</p>
+</blockquote>
+<h3 id="65-qp">6.5 完整 QP 统一公式</h3>
+<blockquote>
+<p><strong>PMSM 完整 CLF-CBF-HOCBF QP：</strong></p>
+<div class="arithmatex">\[\begin{aligned} \min_{u_d, u_q, \delta} \quad &amp; \frac{1}{2}\Big[(u_d - u_d^{\text{nom}})^2 + (u_q - u_q^{\text{nom}})^2\Big] + p\cdot\delta^2 \\ \text{s.t.} \quad &amp; \text{(CLF 稳定)} \quad L_f V + L_G V \cdot u \le -\gamma_v V + \delta \\ &amp; \text{(CBF 电流)} \quad L_f h_I + L_G h_I \cdot u \ge -\gamma_I h_I \\ &amp; \text{(HOCBF 速度)} \quad L_f^2 h_\omega + L_G L_f h_\omega \cdot u \ge -(\gamma_1 + \gamma_2)\dot{h}_\omega - \gamma_1\gamma_2 h_\omega \\ &amp; \text{(电压上限)} \quad -U_{\max} \le u_d \le U_{\max},\; -U_{\max} \le u_q \le U_{\max} \\ &amp; \text{(松弛)} \quad \delta \ge 0 \end{aligned}\]</div>
+<p><strong>QP 标准形式（可直接丢给求解器）：</strong> 变量 <span class="arithmatex">\([u_d, u_q, \delta]^\top \in \mathbb{R}^3\)</span>，所有约束都是线性的，矩阵仅 <span class="arithmatex">\(3 \times 3\)</span>。</p>
+</blockquote>
+<h3 id="66">6.6 约束层次总览</h3>
+<table>
+<thead>
+<tr>
+<th>约束</th>
+<th><span class="arithmatex">\(h\)</span> 表达式</th>
+<th>工具</th>
+<th>相对度</th>
+<th>QP 形式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>速度上限 <span class="arithmatex">\(\omega_m \le \omega_{\max}\)</span></td>
+<td><span class="arithmatex">\(h_\omega = \omega_{\max} - \omega_m\)</span></td>
+<td><strong>HOCBF</strong></td>
+<td><span class="arithmatex">\(r=2\)</span></td>
+<td><span class="arithmatex">\(u_q\)</span> 线性不等式</td>
+</tr>
+<tr>
+<td>电流上限 <span class="arithmatex">\(i_q \le i_{q,\max}\)</span></td>
+<td><span class="arithmatex">\(h_{iq} = i_{q,\max} - i_q\)</span></td>
+<td><strong>CBF</strong></td>
+<td><span class="arithmatex">\(r=1\)</span></td>
+<td><span class="arithmatex">\(u_q\)</span> 线性不等式</td>
+</tr>
+<tr>
+<td>电流幅值 <span class="arithmatex">\(i_d^2 + i_q^2 \le I_{\max}^2\)</span></td>
+<td><span class="arithmatex">\(h_I = I_{\max}^2 - (i_d^2 + i_q^2)\)</span></td>
+<td><strong>CBF</strong></td>
+<td><span class="arithmatex">\(r=1\)</span></td>
+<td><span class="arithmatex">\(u_d, u_q\)</span> 线性不等式</td>
+</tr>
+<tr>
+<td>电压上限 $</td>
+<td>u</td>
+<td>\le U_{\max}$</td>
+<td>—</td>
+<td><strong>Box 约束</strong></td>
+</tr>
+<tr>
+<td>稳定收敛</td>
+<td><span class="arithmatex">\(V = \frac{1}{2}(\omega_m - \omega_{\text{ref}})^2\)</span></td>
+<td><strong>CLF</strong></td>
+<td>—</td>
+<td><span class="arithmatex">\(u_q\)</span> 线性不等式（软）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7">7. 脉络总结</h2>
+
+<h3 id="71">7.1 递进学习路径</h3>
+<ol>
+<li><strong>李导数</strong> → 把非线性动力学"塞进"标量函数导数，全部理论的算符基础：<span class="arithmatex">\(\dot{h} = L_f h + L_G h \cdot u\)</span></li>
+<li><strong>CLF</strong> → 回答"能稳定吗"，把稳定要求转为 <span class="arithmatex">\(u\)</span> 的不等式（软约束）</li>
+<li><strong>CBF</strong> → 回答"安全吗"，把安全集不变性转为 <span class="arithmatex">\(u\)</span> 的不等式（硬约束），前提 <span class="arithmatex">\(r=1\)</span></li>
+<li><strong>CLF-CBF QP</strong> → 统一框架：安全 + 稳定 + 最小偏离，凸 QP 微秒级求解</li>
+<li><strong>HOCBF</strong> → 解决 <span class="arithmatex">\(r&gt;1\)</span>：逐层回退 <span class="arithmatex">\(\psi_0 \to \psi_1 \to \cdots \to \psi_r\)</span>，最终化为 <span class="arithmatex">\(u\)</span> 的线性约束</li>
+</ol>
+<h3 id="72">7.2 约束工具决策流程</h3>
+<pre class="codehilite"><code>给定约束 h(x) ≥ 0
+    │
+    ├─ 是否涉及 u 本身？(如电压上限)
+    │   → 是 → Box 约束 (直接设 u 的上下界)
+    │
+    └─ 否 → 计算 L_G h, L_G L_f h, ...
+            │
+            ├─ L_G h ≠ 0          → r = 1 → CBF
+            ├─ L_G h = 0, L_G L_f h ≠ 0 → r = 2 → HOCBF
+            ├─ L_G L_f h = 0, L_G L_f² h ≠ 0 → r = 3 → HOCBF
+            └─ ...
+</code></pre>
+
+<h3 id="73-pmsm">7.3 PMSM 三大约束对应工具速查</h3>
+<table>
+<thead>
+<tr>
+<th>约束</th>
+<th>工具</th>
+<th>r</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>速度上限</td>
+<td>HOCBF</td>
+<td>2</td>
+<td><span class="arithmatex">\(u\)</span> 不直接影响 <span class="arithmatex">\(\dot{h}_\omega\)</span>（转速）</td>
+</tr>
+<tr>
+<td>电流上限</td>
+<td>CBF</td>
+<td>1</td>
+<td><span class="arithmatex">\(u_q\)</span> 直接影响 <span class="arithmatex">\(\dot{i}_q\)</span></td>
+</tr>
+<tr>
+<td>电压上限</td>
+<td>Box</td>
+<td>0</td>
+<td>约束本身就是 <span class="arithmatex">\(u\)</span></td>
+</tr>
+</tbody>
+</table>
+<h3 id="74">7.4 核心公式速查</h3>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>核心公式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>李导数</td>
+<td><span class="arithmatex">\(L_f h = \nabla h \cdot f(x)\)</span></td>
+</tr>
+<tr>
+<td>仿射系统</td>
+<td><span class="arithmatex">\(\dot{x} = f(x) + G(x)u\)</span></td>
+</tr>
+<tr>
+<td>CLF 条件</td>
+<td><span class="arithmatex">\(\inf_u [L_f V + L_G V \cdot u] &lt; 0\)</span></td>
+</tr>
+<tr>
+<td>CBF 约束</td>
+<td><span class="arithmatex">\(L_f h + L_G h \cdot u \ge -\alpha(h)\)</span></td>
+</tr>
+<tr>
+<td>HOCBF (<span class="arithmatex">\(r=2\)</span>)</td>
+<td><span class="arithmatex">\(\ddot{h} + (\gamma_1 + \gamma_2)\dot{h} + \gamma_1\gamma_2 h \ge 0\)</span></td>
+</tr>
+<tr>
+<td>QP 目标</td>
+<td><span class="arithmatex">\(\min \frac{1}{2}(u - u_{\text{nom}})^\top H (u - u_{\text{nom}}) + p\delta^2\)</span></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_2">参考文献</h3>
+<ol>
+<li>Ames, A. D., et al. "Control Barrier Functions: Theory and Applications." <em>ECC 2019</em>.</li>
+<li>Xu, X., et al. "Robustness of Control Barrier Functions." <em>HSCC 2015</em>.</li>
+<li>Xiao, W., &amp; Belta, C. "High Order Control Barrier Functions." <em>TAC 2022</em>.</li>
+<li>Nguyen, Q., &amp; Sreenath, K. "Exponential CBF for High-Relative-Degree Safety Constraints." <em>ACC 2016</em>.</li>
+<li>Ames, A. D., et al. "Control Lyapunov-Barrier Functions." <em>CDC 2017</em>.</li>
+</ol>
+<hr />
+<p><em>2026-08-04 · 整理于 WorkBuddy</em></p>
+</body>
+</html>
