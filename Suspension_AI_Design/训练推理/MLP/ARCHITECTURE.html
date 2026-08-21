@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARCHITECTURE</title>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'], ['\\(','\\)']],
+    displayMath: [['$$','$$'], ['\\[','\\]']],
+    processEscapes: true,
+  }
+};
+</script>
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --border: #e0e0e0;
+  --code-bg: #f5f5f5;
+  --table-stripe: #fafafa;
+  --link: #1a6fb5;
+  --h1-border: #333;
+  --h2-border: #888;
+  --info-bg: #eef6fc;
+  --info-border: #b8d8f0;
+}
+body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  line-height: 1.8;
+  color: var(--fg);
+  background: var(--bg);
+}
+h1 { font-size: 1.8rem; border-bottom: 2px solid var(--h1-border); padding-bottom: 0.3em; margin-top: 1.8em; }
+h2 { font-size: 1.4rem; border-bottom: 1px solid var(--h2-border); padding-bottom: 0.2em; margin-top: 1.6em; }
+h3 { font-size: 1.15rem; margin-top: 1.4em; }
+h4 { font-size: 1rem; margin-top: 1.2em; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.92em;
+  font-family: "Fira Code", "Source Code Pro", Consolas, monospace;
+}
+pre {
+  background: var(--code-bg);
+  padding: 1em 1.2em;
+  border-radius: 6px;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.55em 0.8em;
+  text-align: left;
+}
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(even) { background: var(--table-stripe); }
+blockquote {
+  border-left: 4px solid var(--info-border);
+  background: var(--info-bg);
+  margin: 1em 0;
+  padding: 0.6em 1em;
+  color: #555;
+}
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+img { max-width: 100%; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --border: #444;
+    --code-bg: #2d2d2d;
+    --table-stripe: #252525;
+    --link: #569cd6;
+    --h1-border: #666;
+    --h2-border: #555;
+    --info-bg: #1a2a3a;
+    --info-border: #2a4a6a;
+  }
+  blockquote { color: #aaa; }
+}
+@media print {
+  body { max-width: 100%; padding: 0; font-size: 11pt; }
+  pre, blockquote { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="mlp-pointmlp">MLP (PointMLP) 网络架构说明</h1>
+<blockquote>
+<p>对应代码：<code>Suspension_AI_Design/训练推理/MLP/train_nn.py</code><br />
+本文档描述的所有维度、参数量、指标均来自<strong>已训练模型的真实 checkpoint</strong><br />
+（<code>nn_out/model.pt</code> 的 <code>ckpt['arch']</code> + 重建模型后 <code>named_parameters()</code> 的真实 shape，<br />
+以及 <code>nn_out/metrics.json</code> 的真实训练结果），非凭空推算。</p>
+</blockquote>
+<h2 id="1">1. 任务定义</h2>
+<p>用 33 维硬点坐标 + 1 维行程（<code>wc_stroke</code>）预测 8 个悬架运动学量，逐行独立回归<br />
+（不是序列模型，每个 <code>(硬点, stroke)</code> 组合当作一个独立样本）。</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入维度</td>
+<td>34（33个硬点坐标 + 1个 <code>wc_stroke</code>）</td>
+</tr>
+<tr>
+<td>输出维度</td>
+<td>8（运动学量）</td>
+</tr>
+<tr>
+<td>训练样本</td>
+<td>969 组几何 × 101 个 stroke 点（长格式，每行独立）</td>
+</tr>
+<tr>
+<td>模型类型</td>
+<td><code>PointMLP</code>（逐点三维编码器，本次训练实际使用的 <code>model_kind='point'</code>）</td>
+</tr>
+<tr>
+<td>集成成员数</td>
+<td>5（<code>Ensemble</code>，5个独立训练的 PointMLP 取预测均值）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-34">2. 输入构成（34维）</h2>
+<p>33维硬点坐标可拆分为 <strong>11 个硬点 × 3 坐标(x,y,z)</strong>，加 1 维 <code>wc_stroke</code>：</p>
+<table>
+<thead>
+<tr>
+<th>硬点分组</th>
+<th>坐标名</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>O1</td>
+<td>O1_x, O1_y, O1_z</td>
+</tr>
+<tr>
+<td>O2</td>
+<td>O2_x, O2_y, O2_z</td>
+</tr>
+<tr>
+<td>O3</td>
+<td>O3_x, O3_y, O3_z</td>
+</tr>
+<tr>
+<td>O4</td>
+<td>O4_x, O4_y, O4_z</td>
+</tr>
+<tr>
+<td>S1</td>
+<td>S1_x, S1_y, S1_z</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>S2_x, S2_y, S2_z</td>
+</tr>
+<tr>
+<td>U1</td>
+<td>U1_x, U1_y, U1_z</td>
+</tr>
+<tr>
+<td>U2</td>
+<td>U2_x, U2_y, U2_z</td>
+</tr>
+<tr>
+<td>U3</td>
+<td>U3_x, U3_y, U3_z</td>
+</tr>
+<tr>
+<td>U4</td>
+<td>U4_x, U4_y, U4_z</td>
+</tr>
+<tr>
+<td>R0</td>
+<td>R0_x, R0_y, R0_z</td>
+</tr>
+<tr>
+<td>stroke</td>
+<td>wc_stroke（行程，范围 [-50, 50] mm）</td>
+</tr>
+</tbody>
+</table>
+<p><code>n_points=11, coord=3</code> → <code>11×3+1=34</code>，与代码中 <code>PointMLP.__init__</code> 的断言<br />
+<code>assert n_points * coord + 1 == n_in</code> 一致。</p>
+<h2 id="3-8">3. 输出（8维）</h2>
+<table>
+<thead>
+<tr>
+<th>输出量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>toe</td>
+<td>前束角 (°)</td>
+</tr>
+<tr>
+<td>camber</td>
+<td>外倾角 (°)</td>
+</tr>
+<tr>
+<td>caster</td>
+<td>后倾角 (°)</td>
+</tr>
+<tr>
+<td>caster_arm</td>
+<td>后倾拖距 (mm)</td>
+</tr>
+<tr>
+<td>scrub_radius</td>
+<td>主销偏移距 (mm)</td>
+</tr>
+<tr>
+<td>tire_con_point_x</td>
+<td>接地点 X (mm)</td>
+</tr>
+<tr>
+<td>tire_con_point_y</td>
+<td>接地点 Y (mm)</td>
+</tr>
+<tr>
+<td>tire_con_point_z</td>
+<td>接地点 Z (mm)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-pointmlp">4. 网络结构（单个集成成员，<code>PointMLP</code>）</h2>
+<p>真实训练超参（来自 <code>model.pt</code> 的 <code>ckpt['arch']</code>）：</p>
+<pre class="codehilite"><code>model_kind = &quot;point&quot;
+n_in       = 34
+n_out      = 8
+n_points   = 11
+coord      = 3
+emb        = 32          # 每个硬点独立编码维度
+trunk      = [512, 256, 128]
+p_drop     = 0.0
+residual   = False        # 主干为普通 Sequential（非残差块堆叠）
+hard_idx   = None          # 未启用独立输出头
+</code></pre>
+
+<h3 id="41-encoder">4.1 逐点编码层（Encoder，每个硬点独立权重）</h3>
+<p>33维硬点先 reshape 成 <code>(11, 3)</code>，即11个点各自的(x,y,z)。<strong>每个点用自己独立的一组<br />
+权重</strong>（不共享），经过两层小 MLP 编码成32维：</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>参数</th>
+<th>形状</th>
+<th>参数量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入</td>
+<td>—</td>
+<td><code>(B, 11, 3)</code></td>
+<td>—</td>
+<td>11个硬点，每点3坐标</td>
+</tr>
+<tr>
+<td>W1</td>
+<td><code>nn.Parameter</code></td>
+<td><code>(11, 3, 32)</code></td>
+<td>1,056</td>
+<td>11个点各自的 3→32 投影权重</td>
+</tr>
+<tr>
+<td>b1</td>
+<td><code>nn.Parameter</code></td>
+<td><code>(11, 32)</code></td>
+<td>352</td>
+<td>对应偏置</td>
+</tr>
+<tr>
+<td>ReLU</td>
+<td>—</td>
+<td><code>(B, 11, 32)</code></td>
+<td>0</td>
+<td>非线性激活</td>
+</tr>
+<tr>
+<td>W2</td>
+<td><code>nn.Parameter</code></td>
+<td><code>(11, 32, 32)</code></td>
+<td>11,264</td>
+<td>11个点各自的 32→32 投影权重</td>
+</tr>
+<tr>
+<td>b2</td>
+<td><code>nn.Parameter</code></td>
+<td><code>(11, 32)</code></td>
+<td>352</td>
+<td>对应偏置</td>
+</tr>
+<tr>
+<td>ReLU + Dropout</td>
+<td>—</td>
+<td><code>(B, 11, 32)</code></td>
+<td>0</td>
+<td>非线性激活 + Dropout(p=0.0)</td>
+</tr>
+<tr>
+<td>Flatten</td>
+<td>—</td>
+<td><code>(B, 352)</code></td>
+<td>0</td>
+<td><code>11×32=352</code>，拼接所有点的编码</td>
+</tr>
+</tbody>
+</table>
+<p>通过 <code>torch.einsum</code> 实现"分组线性变换"，让"同一个硬点的三个坐标是一个整体"<br />
+这一先验被编码进网络结构，而不是把33维当作无结构的扁平向量直接送入MLP。</p>
+<p>拼接 <code>wc_stroke</code>（1维）后，主干网络输入为 <code>352 + 1 = 353</code> 维。</p>
+<h3 id="42-trunkrestrunkresidualfalse-sequential">4.2 主干网络（Trunk，<code>ResTrunk(residual=False)</code> → 普通 Sequential）</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>维度变换</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linear + ReLU + Dropout</td>
+<td>353 → 512</td>
+<td>weight 180,736 + bias 512 = 181,248</td>
+</tr>
+<tr>
+<td>Linear + ReLU + Dropout</td>
+<td>512 → 256</td>
+<td>weight 131,072 + bias 256 = 131,328</td>
+</tr>
+<tr>
+<td>Linear + ReLU + Dropout</td>
+<td>256 → 128</td>
+<td>weight 32,768 + bias 128 = 32,896</td>
+</tr>
+</tbody>
+</table>
+<p>主干输出维度（<code>trunk_dim</code>）= 128。</p>
+<h3 id="43-multiheadhard_idxnone-linear">4.3 输出头（<code>MultiHead</code>，<code>hard_idx=None</code> 时退化为单一 Linear）</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>维度变换</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linear (<code>head.shared</code>)</td>
+<td>128 → 8</td>
+<td>weight 1,024 + bias 8 = 1,032</td>
+</tr>
+</tbody>
+</table>
+<p>本次训练未启用独立输出头（<code>hard_idx=None</code>），8个输出量共享同一个线性层。</p>
+<h3 id="44">4.4 单成员参数量汇总</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>逐点编码器（W1/b1/W2/b2）</td>
+<td>13,024</td>
+</tr>
+<tr>
+<td>主干网络（3层Linear）</td>
+<td>345,472</td>
+</tr>
+<tr>
+<td>输出头</td>
+<td>1,032</td>
+</tr>
+<tr>
+<td><strong>单成员总计</strong></td>
+<td><strong>359,528</strong></td>
+</tr>
+<tr>
+<td><strong>5个集成成员总计</strong></td>
+<td><strong>1,797,640</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="45-batch">4.5 完整前向数据流（单成员，batch维省略）</h3>
+<pre class="codehilite"><code>输入 (34,)
+  ├─ 硬点部分 (33,) → reshape (11, 3)
+  │     │
+  │     ├─ einsum(W1) + b1 → ReLU        (11, 32)
+  │     ├─ einsum(W2) + b2 → ReLU+Drop   (11, 32)
+  │     └─ flatten                        (352,)
+  │
+  └─ stroke部分 (1,) ──────────────────────┘
+                    │
+              concat → (353,)
+                    │
+        Linear+ReLU+Drop (353→512)
+                    │
+        Linear+ReLU+Drop (512→256)
+                    │
+        Linear+ReLU+Drop (256→128)
+                    │
+        Linear (128→8)  [head.shared]
+                    │
+                输出 (8,)
+</code></pre>
+
+<p>集成推理：5个独立训练的 <code>PointMLP</code> 各自前向一次，取输出的算术平均<br />
+（<code>Ensemble.forward</code>: <code>torch.stack([...]).mean(0)</code>），并裁剪到训练集各输出量的<br />
+<code>[min-2%range, max+2%range]</code> 值域范围（抑制外推异常值）。</p>
+<h2 id="5">5. 训练配置</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>优化器</td>
+<td>Adam，lr=2e-3（默认），weight_decay=2e-4</td>
+</tr>
+<tr>
+<td>学习率调度</td>
+<td><code>ReduceLROnPlateau</code>（验证集R²不提升时衰减0.5，patience=5）</td>
+</tr>
+<tr>
+<td>损失函数</td>
+<td>MSE（可选按输出量加权，本次未启用 <code>target_weights</code>）</td>
+</tr>
+<tr>
+<td>数据切分</td>
+<td>按几何编号（曲线）切分 train/val/test = 8:1:1，避免同一曲线的行程点同时出现在训练和测试集（防止数据泄漏）</td>
+</tr>
+<tr>
+<td>标准化</td>
+<td>输入/输出各自做 z-score 标准化，仅用训练集统计量</td>
+</tr>
+<tr>
+<td>早停</td>
+<td>按验证集R²早停，patience=40</td>
+</tr>
+<tr>
+<td>随机种子</td>
+<td>42（5个集成成员分别为 42, 43, 44, 45, 46）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-nn_outmetricsjson">6. 真实训练结果（来自 <code>nn_out/metrics.json</code>）</h2>
+<table>
+<thead>
+<tr>
+<th>数据集切分</th>
+<th>平均 R²</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>训练集</td>
+<td>0.9968</td>
+</tr>
+<tr>
+<td>验证集</td>
+<td>0.9857</td>
+</tr>
+<tr>
+<td>测试集</td>
+<td>0.9828</td>
+</tr>
+</tbody>
+</table>
+<p>判据：测试集平均 R² ≥ 0.98 → <strong>✅ 达标</strong>（<code>passed: true</code>）。</p>
+<h2 id="7-attention-train_nn_attentionpy">7. 与 Attention 版本（<code>train_nn_attention.py</code>）的关键差异</h2>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>MLP（本文档）</th>
+<th>Attention（Seq2Seq）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>样本粒度</td>
+<td>逐行独立（每个stroke点是独立样本）</td>
+<td>整条曲线（101个stroke点一起并行预测）</td>
+</tr>
+<tr>
+<td>硬点利用方式</td>
+<td>每个点独立小MLP编码后拼接</td>
+<td>编码成少量memory token供cross-attention查询</td>
+</tr>
+<tr>
+<td>序列结构建模</td>
+<td>无（stroke当作普通特征输入）</td>
+<td>有（self-attention让曲线内部各点互相感知）</td>
+</tr>
+<tr>
+<td>集成</td>
+<td>5个PointMLP取平均</td>
+<td>单模型（无集成）</td>
+</tr>
+<tr>
+<td>测试集平均R²</td>
+<td>0.9828</td>
+<td>参考 Attention 训练结果（因架构和数据利用方式不同，不直接可比）</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

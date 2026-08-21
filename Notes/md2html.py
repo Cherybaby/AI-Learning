@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Markdown → HTML 转换脚本
 运行方式:
-    python md2html.py                    # 转换脚本所在目录下所有 .md 文件
+    python md2html.py                    # 弹窗选择 .md 文件进行转换
     python md2html.py input.md           # 转换单个文件
     python md2html.py input.md -o out.html
     python md2html.py *.md               # 批量转换指定的 .md 文件
@@ -11,6 +11,8 @@ import os
 import sys
 import markdown
 import glob as glob_module
+import tkinter as tk
+from tkinter import filedialog
 
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
@@ -162,15 +164,22 @@ def convert_file(input_path, output_path=None):
 def main():
     args = sys.argv[1:]
 
-    # 无参数 → 转换脚本所在目录下所有 .md 文件
+    # 无参数 → 弹窗选择 .md 文件
     if not args:
+        root = tk.Tk()
+        root.withdraw()  # 隐藏主窗口
         script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-        md_files = glob_module.glob(os.path.join(script_dir, "*.md"))
+        md_files = filedialog.askopenfilenames(
+            title="选择要转换的 Markdown 文件",
+            initialdir=script_dir,
+            filetypes=[("Markdown 文件", "*.md"), ("所有文件", "*.*")],
+        )
+        root.destroy()
         if not md_files:
-            print(f"脚本所在目录 ({script_dir}) 下没有找到 .md 文件。")
+            print("未选择任何文件，已退出。")
             return
-        print(f"转换 {script_dir} 下的 {len(md_files)} 个 .md 文件：")
-        for f in sorted(md_files):
+        print(f"已选择 {len(md_files)} 个文件，开始转换：")
+        for f in md_files:
             convert_file(f)
         print(f"\n全部完成，共 {len(md_files)} 个文件。")
         return

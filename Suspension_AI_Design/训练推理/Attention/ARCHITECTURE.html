@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARCHITECTURE</title>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'], ['\\(','\\)']],
+    displayMath: [['$$','$$'], ['\\[','\\]']],
+    processEscapes: true,
+  }
+};
+</script>
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --border: #e0e0e0;
+  --code-bg: #f5f5f5;
+  --table-stripe: #fafafa;
+  --link: #1a6fb5;
+  --h1-border: #333;
+  --h2-border: #888;
+  --info-bg: #eef6fc;
+  --info-border: #b8d8f0;
+}
+body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  line-height: 1.8;
+  color: var(--fg);
+  background: var(--bg);
+}
+h1 { font-size: 1.8rem; border-bottom: 2px solid var(--h1-border); padding-bottom: 0.3em; margin-top: 1.8em; }
+h2 { font-size: 1.4rem; border-bottom: 1px solid var(--h2-border); padding-bottom: 0.2em; margin-top: 1.6em; }
+h3 { font-size: 1.15rem; margin-top: 1.4em; }
+h4 { font-size: 1rem; margin-top: 1.2em; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.92em;
+  font-family: "Fira Code", "Source Code Pro", Consolas, monospace;
+}
+pre {
+  background: var(--code-bg);
+  padding: 1em 1.2em;
+  border-radius: 6px;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.55em 0.8em;
+  text-align: left;
+}
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(even) { background: var(--table-stripe); }
+blockquote {
+  border-left: 4px solid var(--info-border);
+  background: var(--info-bg);
+  margin: 1em 0;
+  padding: 0.6em 1em;
+  color: #555;
+}
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+img { max-width: 100%; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --border: #444;
+    --code-bg: #2d2d2d;
+    --table-stripe: #252525;
+    --link: #569cd6;
+    --h1-border: #666;
+    --h2-border: #555;
+    --info-bg: #1a2a3a;
+    --info-border: #2a4a6a;
+  }
+  blockquote { color: #aaa; }
+}
+@media print {
+  body { max-width: 100%; padding: 0; font-size: 11pt; }
+  pre, blockquote { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="attention-seq2seq-transformer-encoder-decoder">Attention (Seq2Seq Transformer Encoder-Decoder) 网络架构说明</h1>
+<blockquote>
+<p>对应代码：<code>Suspension_AI_Design/训练推理/Attention/train_nn_attention.py</code><br />
+本文档描述的所有维度、参数量、指标均来自<strong>已训练模型的真实 checkpoint</strong><br />
+（<code>nn_out_attention/model.pt</code> 的 <code>ckpt['arch']</code> + 重建模型后 <code>named_parameters()</code><br />
+的真实 shape，以及 <code>nn_out_attention/metrics.json</code> 的真实训练结果），非凭空推算。</p>
+<p>⚠️ 代码中定义了两套架构（<code>Seq2SeqAttnKC</code>=v1、<code>Seq2SeqAttnKC_V2</code>=v2），<br />
+<strong>当前 checkpoint 实际保存的是 v1</strong>（<code>arch_version='v1'</code>），本文档以 v1 为主，<br />
+第7节单独说明 v2 的差异。</p>
+</blockquote>
+<h2 id="1">1. 任务定义</h2>
+<p>用 33 维硬点坐标 + 完整的 101 步 <code>wc_stroke</code> 序列，<strong>一次性并行</strong>预测 8 条运动学<br />
+曲线（每条曲线 101 个点），是序列到序列（Seq2Seq）任务，不是逐行独立回归——<br />
+这是与 MLP 版本（<code>train_nn.py</code>）最本质的区别。</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>硬点输入维度</td>
+<td>33（Encoder输入）</td>
+</tr>
+<tr>
+<td>stroke 序列长度 T</td>
+<td>101（范围 [-50, 50] mm）</td>
+</tr>
+<tr>
+<td>输出维度</td>
+<td>8 条曲线 × 101 个点</td>
+</tr>
+<tr>
+<td>样本粒度</td>
+<td>每条几何是一个样本（不是每个 stroke 点）</td>
+</tr>
+<tr>
+<td>训练样本数</td>
+<td>1896 条几何曲线（异常过滤后，原始1963条剔除67条）</td>
+</tr>
+<tr>
+<td>模型类型</td>
+<td><code>Seq2SeqAttnKC</code>（v1，当前 checkpoint 实际使用的版本）</td>
+</tr>
+<tr>
+<td>集成</td>
+<td>无（单模型，不同于 MLP 版本的5模型集成）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2">2. 输入构成</h2>
+<h3 id="21-33encoder">2.1 硬点坐标（33维，Encoder输入）</h3>
+<p>与 MLP 版本相同的 11 硬点 × 3 坐标结构，但 Attention 版本<strong>不做逐点分组编码</strong>，<br />
+33维直接整体送入 Encoder（两层普通 Linear，非 PointMLP 式的逐点独立权重）：</p>
+<table>
+<thead>
+<tr>
+<th>硬点分组</th>
+<th>坐标名</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>O1~O4, S1~S2, U1~U4, R0</td>
+<td>共11个硬点 × (x,y,z) = 33维</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-stroke-101decoderquery">2.2 stroke 序列（101维，Decoder的query序列来源）</h3>
+<p><code>wc_stroke</code> 的完整采样网格（50~150或等效地[-50,50]，101个点），作为 Decoder<br />
+每个 query 位置的"位置编码依据"——<strong>用 stroke 的数值本身做 sin/cos 位置编码</strong>，<br />
+而不是用序列下标，因为 stroke 数值在这个任务里才是有物理意义的"位置"。</p>
+<h2 id="3-8-101">3. 输出（8维 × 101步）</h2>
+<p>与 MLP 版本相同的 8 个运动学量：</p>
+<table>
+<thead>
+<tr>
+<th>输出量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>toe</td>
+<td>前束角 (°)</td>
+</tr>
+<tr>
+<td>camber</td>
+<td>外倾角 (°)</td>
+</tr>
+<tr>
+<td>caster</td>
+<td>后倾角 (°)</td>
+</tr>
+<tr>
+<td>caster_arm</td>
+<td>后倾拖距 (mm)</td>
+</tr>
+<tr>
+<td>scrub_radius</td>
+<td>主销偏移距 (mm)</td>
+</tr>
+<tr>
+<td>tire_con_point_x/y/z</td>
+<td>接地点 X/Y/Z (mm)</td>
+</tr>
+</tbody>
+</table>
+<p>区别在于：MLP 每次前向只输出某一个 stroke 点的 8 个值；Attention 版本一次<br />
+前向输出整条曲线（101个点 × 8个量）。</p>
+<h2 id="4-seq2seqattnkcv1">4. 网络结构（<code>Seq2SeqAttnKC</code>，v1，真实训练超参）</h2>
+<p>来自 <code>model.pt</code> 的 <code>ckpt['arch']</code>：</p>
+<pre class="codehilite"><code>n_hp      = 33
+n_out     = 8
+hidden    = 128      # d_model
+n_layers  = 2         # TransformerDecoder 层数
+n_heads   = 4         # 多头注意力头数
+n_ctx     = 8         # memory token 数量
+p_drop    = 0.1
+</code></pre>
+
+<h3 id="41-encoder33-8-memory-token">4.1 Encoder：33维硬点 → 8个 memory token</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>维度变换</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>encoder.0（Linear+ReLU+Dropout）</td>
+<td>33 → 128</td>
+<td>weight 4,224 + bias 128 = 4,352</td>
+</tr>
+<tr>
+<td>encoder.3（Linear+ReLU+Dropout）</td>
+<td>128 → 128</td>
+<td>weight 16,384 + bias 128 = 16,512</td>
+</tr>
+<tr>
+<td>ctx_proj（Linear）</td>
+<td>128 → 1024</td>
+<td>weight 131,072 + bias 1,024 = 132,096</td>
+</tr>
+</tbody>
+</table>
+<p><code>ctx_proj</code> 输出的 1024 维立即 <code>.view(B, 8, 128)</code> 拆成 <strong>8 个 128 维的 memory<br />
+token</strong>（这里的 1024 = <code>n_ctx × hidden = 8 × 128</code>，只是一次线性变换同时算出<br />
+8个token的实现技巧，1024这个扁平形态不参与后续任何计算）。</p>
+<p>memory token 是<strong>输入相关的</strong>：不同的33维硬点会算出不同的8个token，每次前向<br />
+都重新计算，不是训练完固化下来的查表向量。</p>
+<h3 id="42-stroke-decoder">4.2 stroke 位置编码（Decoder输入的构造）</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>维度变换</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sin/cos 数值位置编码</td>
+<td>1 → 64（<code>2×n_freq</code>, <code>n_freq=hidden/4=32</code>）</td>
+<td>0（无可学习参数）</td>
+</tr>
+<tr>
+<td>pe_proj（Linear）</td>
+<td>64 → 128</td>
+<td>weight 8,192 + bias 128 = 8,320</td>
+</tr>
+</tbody>
+</table>
+<p>每个标准化后的 stroke 标量值，先乘以32个不同频率（<code>torch.exp(torch.linspace(0,4,32))</code>），<br />
+分别取 sin 和 cos 拼成64维，再线性投影到128维，得到 <code>tgt</code>（decoder输入，形状<br />
+<code>(B, 101, 128)</code>）。v1 版本<strong>没有</strong>额外的可学习 position embedding（这是 v2 独有的，<br />
+见第7节）。</p>
+<h3 id="43-transformerdecoder2post-ln">4.3 TransformerDecoder（2层，Post-LN）</h3>
+<pre class="codehilite"><code class="language-python">nn.TransformerDecoderLayer(d_model=128, nhead=4, dim_feedforward=512,
+                            dropout=0.1, batch_first=True, activation=&quot;relu&quot;)
+# 未传 norm_first，默认 norm_first=False，即 Post-LN 结构
+</code></pre>
+
+<p>每层内部三个子层，<strong>Post-LN</strong>（先算子层输出，再做残差+LayerNorm）：</p>
+<pre class="codehilite"><code>Self-Attn:  tgt2 = norm1(tgt  + dropout(SelfAttn(tgt, tgt, tgt)))
+Cross-Attn: tgt3 = norm2(tgt2 + dropout(CrossAttn(tgt2, memory, memory)))
+FFN:        out  = norm3(tgt3 + dropout(FFN(tgt3)))
+</code></pre>
+
+<table>
+<thead>
+<tr>
+<th>子模块</th>
+<th>参数</th>
+<th>形状</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>self_attn.in_proj（Q/K/V合并）</td>
+<td>weight+bias</td>
+<td>(384,128)+(384,)</td>
+<td>49,152+384=49,536</td>
+</tr>
+<tr>
+<td>self_attn.out_proj</td>
+<td>weight+bias</td>
+<td>(128,128)+(128,)</td>
+<td>16,384+128=16,512</td>
+</tr>
+<tr>
+<td>multihead_attn.in_proj（cross-attn的Q/K/V）</td>
+<td>weight+bias</td>
+<td>(384,128)+(384,)</td>
+<td>49,152+384=49,536</td>
+</tr>
+<tr>
+<td>multihead_attn.out_proj</td>
+<td>weight+bias</td>
+<td>(128,128)+(128,)</td>
+<td>16,384+128=16,512</td>
+</tr>
+<tr>
+<td>linear1（FFN第一层）</td>
+<td>weight+bias</td>
+<td>(512,128)+(512,)</td>
+<td>65,536+512=66,048</td>
+</tr>
+<tr>
+<td>linear2（FFN第二层）</td>
+<td>weight+bias</td>
+<td>(128,512)+(128,)</td>
+<td>65,536+128=65,664</td>
+</tr>
+<tr>
+<td>norm1/norm2/norm3（LayerNorm ×3）</td>
+<td>weight+bias</td>
+<td>(128,)×2 ×3</td>
+<td>128×2×3=768</td>
+</tr>
+<tr>
+<td><strong>单层小计</strong></td>
+<td></td>
+<td></td>
+<td><strong>264,576</strong></td>
+</tr>
+<tr>
+<td><strong>2层总计</strong></td>
+<td></td>
+<td></td>
+<td><strong>529,152</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Self-Attention：101个stroke点互相看（双向，无因果mask，因为整条曲线一次性给定，<br />
+不是自回归生成）。Cross-Attention：101个query分别查询8个memory token，注意力<br />
+矩阵形状 <code>(B, 4头, 101, 8)</code>，最后一维=8正是memory的长度。</p>
+<h3 id="44">4.4 输出头</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>维度变换</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>out_proj（单层Linear）</td>
+<td>128 → 8</td>
+<td>weight 1,024 + bias 8 = 1,032</td>
+</tr>
+</tbody>
+</table>
+<p>v1 版本输出头是单层 Linear（v2 是两层MLP，见第7节）。</p>
+<h3 id="45">4.5 参数量汇总</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Encoder（两层Linear+ctx_proj）</td>
+<td>152,960</td>
+</tr>
+<tr>
+<td>stroke位置编码（pe_proj）</td>
+<td>8,320</td>
+</tr>
+<tr>
+<td>TransformerDecoder（2层）</td>
+<td>529,152</td>
+</tr>
+<tr>
+<td>输出头</td>
+<td>1,032</td>
+</tr>
+<tr>
+<td>Positional encoding的sin/cos（无参数）</td>
+<td>0</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td><strong>691,464</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="46">4.6 完整前向数据流</h3>
+<pre class="codehilite"><code>33维硬点 hp                          101个stroke值 stroke_seq
+    │                                        │
+encoder(2层Linear)                    sin/cos位置编码 + pe_proj
+    │ (B,128)                                │ (B,101,128) = tgt
+ctx_proj + view                              │
+    │                                        │
+memory (B,8,128)  ──────┐                    │
+                         │                    │
+              ┌──────────┴────────────────────┴──────┐
+              │  DecoderLayer[0]:                      │
+              │   Self-Attn(tgt,tgt,tgt) + norm1       │
+              │   Cross-Attn(tgt2,memory,memory)+norm2 │
+              │   FFN + norm3                           │
+              └──────────────────┬────────────────────┘
+                                  │ (B,101,128)
+              ┌───────────────────┴────────────────────┐
+              │  DecoderLayer[1]: 同上结构（复用同一份memory） │
+              └───────────────────┬────────────────────┘
+                                  │ (B,101,128)
+                            out_proj(128→8)
+                                  │
+                        输出 (B,101,8)：8条曲线，每条101步
+</code></pre>
+
+<p>memory（8个token）在2层decoder中保持不变、被反复查询，不会随层数变化而更新。</p>
+<h2 id="5">5. 训练配置</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>优化器</td>
+<td>Adam，lr=1.5e-3（v1默认），weight_decay=2e-4</td>
+</tr>
+<tr>
+<td>学习率调度</td>
+<td><code>ReduceLROnPlateau</code>（验证集平均R²不提升时衰减0.5，patience=4）</td>
+</tr>
+<tr>
+<td>损失函数</td>
+<td>MSE（标准化空间，对整条曲线所有点、所有量整体计算）</td>
+</tr>
+<tr>
+<td>批大小</td>
+<td>64（按几何计，每条完整曲线是一个样本）</td>
+</tr>
+<tr>
+<td>数据切分</td>
+<td>按几何编号切分 train/val/test = 8:1:1（与MLP版本切分逻辑一致，但用的是<code>split_geo</code>而非<code>split_by_group</code>，因为数据已重组为规整序列）</td>
+</tr>
+<tr>
+<td>标准化</td>
+<td>硬点(xs)、输出(ys)、stroke(ss) 三套独立的z-score标准化器</td>
+</tr>
+<tr>
+<td>早停</td>
+<td>按验证集平均R²早停，patience=25</td>
+</tr>
+<tr>
+<td>随机种子</td>
+<td>42</td>
+</tr>
+<tr>
+<td>训练方式</td>
+<td>整条曲线一次性并行前向，<strong>不需要 teacher forcing</strong>（区别于早期 GRU 版本需要逐步自回归）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-nn_out_attentionmetricsjson">6. 真实训练结果（来自 <code>nn_out_attention/metrics.json</code>）</h2>
+<table>
+<thead>
+<tr>
+<th>数据集切分</th>
+<th>平均 R²</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>训练集</td>
+<td>0.9714</td>
+</tr>
+<tr>
+<td>验证集</td>
+<td>0.9550</td>
+</tr>
+<tr>
+<td>测试集</td>
+<td>0.9479</td>
+</tr>
+</tbody>
+</table>
+<p>判据：测试集平均 R² ≥ 0.98 → <strong>⚠️ 未达标</strong>（<code>passed: false</code>），低于 MLP 版本<br />
+（测试集R²=0.9828，见 <code>MLP/ARCHITECTURE.md</code>）。</p>
+<p>此外，经排查（详见前序对话分析），该模型的 Cross-Attention 在部分测试样例上<br />
+呈现<strong>权重完全均匀分布</strong>的现象（各头对8个memory token的权重严格等于1/8），<br />
+即模型未学到对不同memory token的区分性查询，这可能是测试集R²低于MLP版本的<br />
+原因之一。</p>
+<h2 id="7-v2-seq2seqattnkc_v2checkpoint">7. v2 架构（<code>Seq2SeqAttnKC_V2</code>，代码中已定义但当前checkpoint未使用）</h2>
+<p>v2 相对 v1 的差异（"方案B"，更大容量+更标准的深层Transformer配方）：</p>
+<table>
+<thead>
+<tr>
+<th>超参</th>
+<th>v1（当前使用）</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hidden (d_model)</td>
+<td>128</td>
+<td>256</td>
+</tr>
+<tr>
+<td>n_layers</td>
+<td>2</td>
+<td>4</td>
+</tr>
+<tr>
+<td>n_heads</td>
+<td>4</td>
+<td>8</td>
+</tr>
+<tr>
+<td>n_ctx（memory token数）</td>
+<td>8</td>
+<td>4</td>
+</tr>
+<tr>
+<td>norm结构</td>
+<td>Post-LN（默认，未传norm_first）</td>
+<td>Pre-LN（显式<code>norm_first=True</code>）</td>
+</tr>
+<tr>
+<td>输出头</td>
+<td>单层Linear</td>
+<td>两层MLP（128→256→8，带ReLU+Dropout）</td>
+</tr>
+<tr>
+<td>额外位置编码</td>
+<td>无</td>
+<td>叠加可学习 <code>pos_query</code>（按序列下标索引，形状<code>(101,256)</code>）</td>
+</tr>
+<tr>
+<td>总参数量</td>
+<td>691,464</td>
+<td>4,745,992</td>
+</tr>
+</tbody>
+</table>
+<p>v2 是否比 v1 效果更好，代码注释中明确说明"需要实测（同数据/同预算对比R²/MAE）"，<br />
+未给出严格结论。当前保存的 checkpoint 是 v1，若切换到 v2 需用 <code>--arch v2</code> 参数<br />
+重新训练。</p>
+<h2 id="8-mlp-train_nnpy">8. 与 MLP 版本（<code>train_nn.py</code>）的关键差异</h2>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Attention（本文档）</th>
+<th>MLP（PointMLP，5模型集成）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>样本粒度</td>
+<td>整条曲线（101点一起并行预测）</td>
+<td>逐行独立（每个stroke点是独立样本）</td>
+</tr>
+<tr>
+<td>硬点利用方式</td>
+<td>整体33维直接过2层Linear，压缩成8个memory token</td>
+<td>每个硬点独立小MLP编码后拼接（保留点的身份）</td>
+</tr>
+<tr>
+<td>序列结构建模</td>
+<td>有（self-attention让曲线内部各点互相感知）</td>
+<td>无（stroke当作普通特征输入）</td>
+</tr>
+<tr>
+<td>集成</td>
+<td>无（单模型）</td>
+<td>5个PointMLP取平均</td>
+</tr>
+<tr>
+<td>总参数量</td>
+<td>691,464</td>
+<td>1,797,640（5个成员合计）</td>
+</tr>
+<tr>
+<td>测试集平均R²</td>
+<td>0.9479（未达标）</td>
+<td>0.9828（达标）</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
