@@ -12,7 +12,8 @@
 4. [CLF-CBF QP 统一框架](#4)
 5. [高阶 CBF（HOCBF）](#5)
 6. [PMSM 控制实例](#6)
-7. [脉络总结](#7)
+7. [稳定性与安全性证明](#8-stability)
+8. [脉络总结](#7)
 
 ---
 
@@ -478,6 +479,292 @@ $$\begin{aligned} \frac{di_d}{dt} &= -\frac{R_s}{L_s} i_d + p\omega_m i_q + \fra
 | 电流幅值 $i_d^2 + i_q^2 \le I_{\max}^2$ | $h_I = I_{\max}^2 - (i_d^2 + i_q^2)$ | **CBF** | $r=1$ | $u_d, u_q$ 线性不等式 |
 | 电压上限 $|u| \le U_{\max}$ | — | **Box 约束** | $r=0$ | $lb \le u \le ub$ |
 | 稳定收敛 | $V = \frac{1}{2}(\omega_m - \omega_{\text{ref}})^2$ | **CLF** | — | $u_q$ 线性不等式（软） |
+
+---
+
+<h2 id="8-stability">8. 稳定性与安全性证明</h2>
+
+> 前面章节给出了 CLF/CBF 的**定义**与**构造方法**，本章回答更根本的问题：**为什么这样设计的控制器真的能稳定、真的能保证安全？**
+>
+> 证明思路统一为两条主线：
+> - **CLF → 稳定性**：构造 Lyapunov 函数 $V$，证明受控闭环满足 $\dot{V} \le -\gamma V + \delta$（指数类收敛，松弛项有界）。
+> - **CBF → 安全性**：证明安全集 $\mathcal{C}$ 是**前向不变**的，即 $h(x(t)) \ge 0$ 对所有 $t \ge 0$ 成立。
+>
+> 所有证明都建立在**控制仿射系统** $\dot{x} = f(x) + G(x)u$ 上，并沿用前文章号约定。
+
+---
+
+### 8.1 预备知识：类 $\mathcal{K}$、类 $\mathcal{K}_\infty$ 与比较引理
+
+> **定义（类 $\mathcal{K}$ / $\mathcal{K}_\infty$ 函数）：**
+> - $\alpha: [0, a) \to [0, \infty)$ 属于类 $\mathcal{K}$，若它连续、严格递增且 $\alpha(0)=0$。
+> - 若定义域是 $[0, \infty)$ 且 $\alpha(r) \to \infty$（当 $r \to \infty$），则属于类 $\mathcal{K}_\infty$。
+> - $\mathcal{K}_\infty^e$（扩展类）允许在 $r>0$ 时取正值，是 CBF 定义中 $\alpha(h)$ 常用的形式。
+
+> **比较引理（Comparison Lemma）：** 设 $\dot{y} = g(t, y)$ 满足 $g(t, y) \le \tilde{g}(t, y)$（其中 $\tilde{g}$ 是右端更"差"的标量 ODE），且 $y(t_0) \le \tilde{y}(t_0)$，则 $y(t) \le \tilde{y}(t)$ 对所有 $t \ge t_0$ 成立。
+>
+> **作用**：把 $\dot{h} \ge -\alpha(h)$ 这样的**微分不等式**"放缩"成可解 ODE $\dot{\xi} = -\alpha(\xi)$，直接得到 $h(x(t)) \ge \xi(t)$ 的下界估计。这是 CBF 安全性证明的核心工具。
+
+#### 案例 1：比较引理的显式求解（CBF 证明的模板）
+
+> 设 $\dot{h} \ge -2h$，$h(0) = h_0 > 0$。取比较系统 $\dot{\xi} = -2\xi$，$\xi(0)=h_0$，解为 $\xi(t) = h_0 e^{-2t}$。
+>
+> 由比较引理：$h(t) \ge h_0 e^{-2t} > 0$ 对所有 $t \ge 0$ 成立。
+>
+> **结论**：只要初始在安全集内（$h_0>0$），$h(t)$ 永远为正——这正是"前向不变"的定量版本。注意指数衰减率 $2$ 正好对应 CBF 参数 $\gamma$，**$\gamma$ 越大，越远离边界的速度越快**。
+
+---
+
+### 8.2 CLF 控制器稳定性证明
+
+#### 8.2.1 理想 CLF 控制器（无松弛，$\delta \equiv 0$）
+
+> **定理 1（理想 CLF 渐近稳定）：** 考虑 $\dot{x} = f(x) + G(x)u$，设 $V(x)$ 连续可微、正定、径向无界，且满足 CLF 条件
+>
+> $$\inf_{u \in \mathbb{R}^m} \left[ L_f V + L_G V \cdot u \right] < 0, \quad \forall x \neq 0$$
+>
+> 若选取控制律 $u = k(x)$ 使得
+>
+> $$L_f V + L_G V \cdot k(x) \le -\gamma V(x), \quad \gamma > 0$$
+>
+> 则闭环系统在原点**一致渐近稳定**。
+
+**证明：**
+
+**Step 1（Lyapunov 函数）**——取 $V(x)$ 本身。由 CLF 假设，$V$ 正定且径向无界（满足 Lyapunov 函数的前两条）。
+
+**Step 2（沿闭环轨线的导数）**——由链式求导与李导数定义：
+
+$$\dot{V}(x) = \frac{\partial V}{\partial x}\dot{x} = L_f V + L_G V \cdot k(x) \le -\gamma V(x)$$
+
+**Step 3（比较引理）**——考虑比较方程 $\dot{\xi} = -\gamma \xi$，$\xi(0)=V(x(0))$。由比较引理：
+
+$$0 \le V(x(t)) \le V(x(0)) e^{-\gamma t}$$
+
+**Step 4（收敛结论）**——当 $t \to \infty$ 时 $V(x(t)) \to 0$，而 $V$ 正定 $\Rightarrow$ $x(t) \to 0$。指数衰减率 $\gamma$ 直接给出**收敛速度**。∎
+
+> **关键观察**：证明中唯一用到的控制信息是"$\dot{V} \le -\gamma V$"这个不等式——**它正是由 CLF-QP 的约束强制保证的**。也就是说，只要 QP 可行，稳定性自动成立。
+
+#### 案例 2：理想 CLF 衰减率的数值验证
+
+> 系统 $\dot{x} = -x + u$（同前文章节 2.1），$V = \tfrac{1}{2}x^2$，选 $u = -2x$（即 $k=2$）：
+>
+> $$\dot{V} = x(-x + u) = x(-x -2x) = -3x^2 = -3 \cdot (2V) = -6V$$
+>
+> 故 $\gamma = 6$，解为 $V(t) = V_0 e^{-6t}$，$|x(t)| = |x_0| e^{-3t}$。
+>
+> 若选更激进的 $u = -10x$ → $\dot{V} = -11x^2 = -22V$，$\gamma = 22$，收敛更快但控制代价更大。**$\gamma$ 是"收敛速度 vs 控制能量"的旋钮**，与 QP 中 $\frac{1}{2}u^\top H u$ 的权重 $H$ 共同决定实际收敛率。
+
+#### 8.2.2 带松弛的 CLF-QP 控制器（实际情形）
+
+现实 QP 引入松弛 $\delta \ge 0$ 以处理 CLF-CBF 冲突。此时约束变为：
+
+$$L_f V + L_G V \cdot u \le -\gamma V + \delta$$
+
+稳定性结论需相应弱化：
+
+> **定理 2（松弛 CLF 的实际稳定性）：** 设 QP 给出的控制律 $u^*(x)$ 满足约束
+>
+> $$L_f V + L_G V \cdot u^*(x) \le -\gamma V(x) + \delta(x), \quad \delta(x) \ge 0$$
+>
+> 且松弛项满足**一致上界** $\delta(x) \le \bar{\delta}$（例如由 QP 的 box 约束 $u \in \mathcal{U}$ 有界保证）。则闭环解满足
+>
+> $$V(x(t)) \le V(x(0)) e^{-\gamma t} + \frac{\bar{\delta}}{\gamma}\left(1 - e^{-\gamma t}\right)$$
+>
+> 即 $x(t)$ **指数收敛到半径为 $\sqrt{2\bar{\delta}/\gamma}$ 的球域**（而非原点）。
+
+**证明：**
+
+由约束直接得 $\dot{V} \le -\gamma V + \delta$。考虑比较系统 $\dot{\xi} = -\gamma \xi + \bar{\delta}$，$\xi(0)=V(0)$，解为
+
+$$\xi(t) = V(0) e^{-\gamma t} + \frac{\bar{\delta}}{\gamma}\left(1 - e^{-\gamma t}\right)$$
+
+由比较引理 $V(x(t)) \le \xi(t)$。当 $t \to \infty$ 时，$V(x(t)) \le \bar{\delta}/\gamma$。因 $V = \tfrac{1}{2}x^2$（径向等价），故 $\|x\|_\infty \le \sqrt{2\bar{\delta}/\gamma}$。∎
+
+> **工程解读**：
+> - $\bar{\delta} = 0$ → 回到理想渐近稳定（定理 1）。
+> - $\bar{\delta}$ 越小（QP 惩罚 $p$ 越大）→ 最终残差越小，但应对 CBF 冲突的"让步空间"也越小。
+> - **这是"安全优先"的代价**：牺牲了原点精确收敛，换来可行性。
+
+#### 案例 3：松弛残差的定量估算
+
+> 沿用案例 6 的参数：$\gamma = 1$。假设输入受限于 $|u| \le 10$，QP 中 $u^2$ 项有限，可得松弛上界 $\bar{\delta} \approx 22.5$（来自约束 $3u - \delta \le -22.5$ 在 $u=-10$ 时的边界）。
+>
+> 最终残差：$V_\infty \le \bar{\delta}/\gamma = 22.5$，对应 $\|x\|_\infty \le \sqrt{2 \times 22.5} \approx 6.7$。
+>
+> 若把惩罚提高到 $p=100$（更不愿松弛），残差可压到约 $2.25$，代价是冲突时 QP 更容易不可行。**这解释了为什么实际系统常采用"分层恢复"策略：障碍物清除后把 $\delta$ 权重调回大值，重新精确收敛到原点。**
+
+---
+
+### 8.3 CBF 控制器安全性证明
+
+#### 8.3.1 ZCBF 与零化控制障碍函数
+
+为证明不变性，采用**零化控制障碍函数（ZCBF）** 框架（Ames et al.），它比一般 CBF 条件更便于构造控制器：
+
+> **定义（ZCBF）：** 设 $\mathcal{C} = \{x \mid h(x) \ge 0\}$，函数 $h$ 是**零化控制障碍函数**（相对度 1），若存在 $\mathcal{K}_\infty^e$ 函数 $\alpha$ 使得
+>
+> $$\sup_{u \in \mathcal{U}} \left[ L_f h + L_G h \cdot u + \alpha(h) \right] \ge 0$$
+>
+> 即存在 $u$ 使 $\dot{h} + \alpha(h) \ge 0$。这与前文章节 3.1 的 CBF 定义等价（$\dot{h} \ge -\alpha(h)$）。
+
+> **引理（不变性引理）：** 设 $h$ 是 ZCBF，$\mathcal{U}$ 是 closed（闭集），$f, G$ 足够光滑。定义控制律
+>
+> $$u_{\text{cbf}}(x) \in \argmax_{u \in \mathcal{K}_{\text{cbf}}(x)} \|u\| \quad \text{（任取可行控制器）}$$
+>
+> 其中 $K_{\text{cbf}}(x) = \{u \mid L_f h + L_G h \cdot u + \alpha(h) \ge 0\}$。若 $x(0) \in \mathcal{C}$，则 $x(t) \in \mathcal{C}$ 对所有 $t \ge 0$。
+
+**证明（反证法）：**
+
+**Step 1（假设逃逸）**——假设结论不成立，则存在最早逃逸时刻 $t^* > 0$ 使得 $h(x(t^*)) = 0$ 且 $\dot{h}(x(t^*)) < 0$（否则无法从非负穿过 0 变为负）。
+
+**Step 2（在边界上应用 CBF 条件）**——在 $x(t^*)$ 处，$h=0$，由 $\alpha \in \mathcal{K}_\infty^e$ 得 $\alpha(0) = 0$。CBF 定义要求存在 $u$ 使
+
+$$\dot{h}(x(t^*)) = L_f h + L_G h \cdot u \ge -\alpha(0) = 0$$
+
+**Step 3（矛盾）**——取可行控制 $u_{\text{cbf}}(t^*)$，必有 $\dot{h}(x(t^*)) \ge 0$，与 Step 1 的 $\dot{h} < 0$ 矛盾。∎
+
+> **要点**：证明的关键是 **"边界处 $\dot{h} \ge 0$"**——一旦靠近边界，CBF 控制器就强制状态"不再继续靠近"，这正是前文章节 3.1 所述"$h \to 0$ 时 $\dot{h} \ge 0$"的几何含义。
+
+#### 案例 4：ZCBF 控制器在边界的行为验证
+
+> 系统 $\dot{x} = u$，$h(x) = 10 - x$（同前文章节 3.1 案例 7），$\alpha(s) = \gamma s$。CBF 约束 $u \le \gamma(10-x)$。
+>
+> **在边界上** $x = 10$：$h=0$，约束给出 $u \le 0$。故 $\dot{h} = -\dot{x} = -u \ge 0$。
+>
+> 取 CBF 控制器 $u_{\text{cbf}} = \min\{u_{\text{nom}},\, \gamma(10-x)\}$：
+> - 若 $u_{\text{nom}} = 3$，$x=9.9$（接近边界，$\gamma=5$）：允许上限 $\gamma h = 0.5$，故 $u_{\text{cbf}} = 0.5$，$\dot{h} = -0.5 < 0$？
+>
+> ⚠️ **检查**：$\dot{h} = -u_{\text{cbf}} = -0.5$ 看似违反 $\dot{h}\ge 0$！问题出在 **$\alpha(h)=\gamma h = 0.5$ 而非 0**。正确计算：
+>
+> $$\dot{h} + \alpha(h) = -0.5 + 0.5 = 0 \ge 0 \quad ✅$$
+>
+> 即 CBF 保证的是 $\dot{h} \ge -\alpha(h) = -0.5$，允许 $h$ 轻微下降，但下降速度被 $\alpha(h)$ 压制。**当 $h \to 0$ 时 $\alpha(h) \to 0$，压制趋于无穷强，从而 $h$ 无法真正穿越 0。** 这正是证明中"$h$ 最多渐近趋近 0 而不穿越"的定量体现。
+
+#### 8.3.2 指数类安全：显式下界
+
+> **定理 3（指数类安全界）：** 若 CBF 条件 $\dot{h} \ge -\gamma h$（即 $\alpha(h)=\gamma h$）成立，且 $h(x(0)) \ge 0$，则
+>
+> $$h(x(t)) \ge h(x(0)) e^{-\gamma t} \ge 0, \quad \forall t \ge 0$$
+>
+> **特别地**，$h(x(0)) > 0 \Rightarrow h(x(t)) > 0$（严格保持在安全集内部）。
+
+**证明：** 微分不等式 $\dot{h} \ge -\gamma h$ 与比较引理（案例 1）直接给出 $h(t) \ge h(0)e^{-\gamma t} \ge 0$。∎
+
+> **物理含义**：参数 $\gamma$ 是"排斥边界的强度"。$\gamma$ 越大，一旦 $h$ 变小，控制器越剧烈地把状态推回安全区——这与前文章节 3.1 案例 8 中"$\gamma=5$ 比 $\gamma=2$ 约束更激进"完全一致。
+
+#### 案例 5：双 CBF 的安全性叠加
+
+> 设同时存在速度约束 $h_1 = 10 - x$（上限）与位置约束 $h_2 = x - 2$（下限），均取 $\gamma=3$。QP 同时施加
+>
+> $$u \le 3(10 - x), \qquad u \ge -3(x - 2)$$
+>
+> 由定理 3，各自满足 $h_1(t) \ge h_1(0)e^{-3t}$、$h_2(t) \ge h_2(0)e^{-3t}$。只要初始 $x(0) \in [2, 10]$，两者同时成立 → 状态始终被"夹"在带域内。
+>
+> **推广**：有限个 CBF 约束 $\{h_i\}_{i=1}^{N}$ 在 QP 中做交集 $\bigcap_i \{x \mid h_i(x) \ge 0\}$，**每个 $h_i$ 的安全性都由各自的不变性引理独立保证**——这是 CBF 框架模块化、可叠加的根本原因。
+
+---
+
+### 8.4 CLF-CBF 统一 QP 的可行性论证
+
+> 仅有 CLF 稳定性 + CBF 安全性各自成立还不够——**QP 必须同时可行**，否则控制器无输出。本节论证统一框架的可行性条件。
+
+> **定理 4（统一 QP 可行域非空）：** 考虑 CLF-CBF QP（前文章节 4）：
+>
+> $$\min_{u,\delta}\; \tfrac{1}{2}\|u-u_{\text{nom}}\|^2 + p\delta^2 \quad \text{s.t.}\quad \dot{V} + \gamma_v V - \delta \le 0,\; \dot{h} + \gamma_h h \ge 0,\; u \in \mathcal{U}$$
+>
+> 设 $\mathcal{U}$ 为闭凸集（如 box 约束），且 **CLF 与 CBF 约束各自在 $\mathcal{U}$ 内可行**，即存在 $u_{\text{clf}} \in \mathcal{U}$ 满足 CLF、存在 $u_{\text{cbf}} \in \mathcal{U}$ 满足 CBF。则：
+>
+> 1. **当 CLF、CBF 约束相容**（交集非空）时，QP 有唯一解（目标函数强凸），闭环同时稳定且安全。
+> 2. **当二者冲突**（交集为空）时，松弛变量 $\delta$ 保证 QP **恒可行**：优先满足 CBF 硬约束，CLF 被适度违反。
+
+**论证：**
+
+**Part 1（相容情形）**——可行域是闭凸集（线性不等式 + box），目标函数 $\tfrac{1}{2}\|u-u_{\text{nom}}\|^2 + p\delta^2$ 关于 $(u,\delta)$ 强凸（$p>0$），故若可行域非空，**存在唯一全局最优解**。闭环由定理 1 + 定理 3 同时保证稳定与安全。
+
+**Part 2（冲突情形）**——这是引入 $\delta$ 的关键。重写 CLF 约束为
+
+$$L_G V \cdot u \le -L_f V - \gamma_v V + \delta$$
+
+- 若左侧在 $u \in \mathcal{U}$ 上的最大值仍大于右端 → 取足够大的 $\delta$ 即可满足。
+- 因 $\delta$ 无上界（仅受目标函数惩罚），**总能找到 $(u,\delta)$ 满足 CLF 约束**，同时保持 CBF 与 $u\in\mathcal{U}$ 不变（后二者不含 $\delta$）。
+
+故可行域恒非空，QP 恒有解。此时由定理 2，稳定性退化为"实际稳定"（残差界 $\bar{\delta}/\gamma_v$）。∎
+
+#### 案例 6：冲突场景的可行性验证（呼应章节 4 案例 9）
+
+> 自动驾驶：$u_{\text{nom}} = 5$（加速），$u \in [-10, 10]$。
+> - CBF 约束（距障碍 2m，$\gamma_h=3$）：$u \le 3 \times 2 = 6$ → $u \le 6$。
+> - CLF 约束（目标速度 80km/h，当前 60，$\gamma_v=1$，$V=200$，$L_G V=3$，$L_f V=0$）：$3u \le -200 + \delta$。
+>
+> **相容检查**：CBF 要求 $u \le 6$，CLF 要求 $u \le (3u+\delta)/...$ 实际为 $u \le -66.7 + \delta/3$。
+>
+> - 无松弛（$\delta=0$）：CLF 要 $u \le -66.7$，但 $u \ge -10$（box）→ **无解，QP 不可行**。
+> - 有松弛：取 $u = -10$（box 下界），则 $\delta \ge 3(-10) + 200 = 170$。QP 选 $\delta = 170$（付出代价 $p\delta^2$），输出 $u=-10$（全力刹车）。
+>
+> **解读**：$\delta=170$ 很大 → 稳定性被严重牺牲（按定理 2，残差 $\bar{\delta}/\gamma_v = 170$），但 CBF 硬约束保住安全。**这正是章节 4 所述"安全优先，稳定让步"的严格数学表述**：$\delta$ 不仅让 QP 可行，更精确刻画了"让步多少"。
+
+---
+
+### 8.5 统一闭环的性能画像
+
+> 综合定理 1~4，采用 CLF-CBF QP 的统一控制器，闭环具有如下性能：
+
+| 性质 | 条件 | 结论 | 对应定理 |
+|------|------|------|---------|
+| **安全性** | CBF 硬约束可行 | $h(x(t)) \ge h_0 e^{-\gamma_h t} \ge 0$ | 定理 3 |
+| **渐近稳定** | $\delta \equiv 0$（无冲突） | $V(t) \le V_0 e^{-\gamma_v t}$ | 定理 1 |
+| **实际稳定** | $\delta > 0$（有冲突） | $V(t) \le V_0 e^{-\gamma_v t} + \bar{\delta}/\gamma_v$ | 定理 2 |
+| **可行性** | $\mathcal{U}$ 闭凸 + $\delta$ 松弛 | QP 恒有唯一解 | 定理 4 |
+
+> **核心结论**：CLF 与 CBF 不是"两个独立目标"，而是通过 QP 形成**偏序关系**——CBF（安全）是**硬约束**，CLF（稳定）是**软约束**。数学上体现为：
+> - CBF 决定可行域是否为空（生存问题）；
+> - CLF 决定可行域内的优化方向（性能问题）。
+>
+> 这正是"**安全过滤器**"这一称谓的本质：先保证活下来（安全不变集），再谈收敛快慢（Lyapunov 衰减）。
+
+---
+
+### 8.6 与 HOCBF 的衔接
+
+> 第 5 章的 HOCBF 处理 $r>1$ 情形。其稳定性/安全性证明可通过**动态扩展**归约到本章框架：
+
+> **归约思路**：对相对度 $r$ 的 $h$，构造序列 $\psi_0 = h,\ \psi_1 = \dot{h}+\alpha_1(h),\ \dots,\ \psi_r$ 如第 5 章。定义**扩张状态** $z = [\psi_0, \psi_1, \dots, \psi_{r-1}]^\top$，则 $\dot{z}_i = \psi_{i+1}$（对 $i<r-1$），而 $\dot{z}_{r-1} = \psi_r$ **显式含控制 $u$**（因 $L_G L_f^{r-1}h \neq 0$）。
+
+> **结论**：在扩张坐标下，$\psi_r \ge 0$ 成为**相对度 1 的 ZCBF 约束**（关于扩张系统），可直接套用定理 3 得 $\psi_r(t) \ge \psi_r(0)e^{-\gamma_r t} \ge 0$，再递归推出 $h(x(t)) \ge 0$。
+
+#### 案例 7：速度限制 HOCBF（$r=2$）的安全性验证
+
+> 沿用第 6 章：$h_\omega = \omega_{\max} - \omega_m$，$r=2$，$\gamma_1=\gamma_2=10$。
+>
+> $$\psi_0 = h_\omega, \quad \psi_1 = \dot{h}_\omega + 10h_\omega, \quad \psi_2 = \ddot{h}_\omega + 10\dot{h}_\omega + 10\psi_1 \ge 0$$
+>
+> 由定理 3（对 $\psi_1$ 的相对度 1 约束 $\psi_2 \ge 0$，取 $\alpha=\gamma_2 s$）：
+
+$$\psi_1(t) \ge \psi_1(0) e^{-10t}$$
+
+> 又 $\psi_0 = h_\omega$ 满足 $\dot{\psi}_0 = \psi_1 - 10\psi_0 \ge \psi_1(0)e^{-10t} - 10\psi_0$……
+>
+> 递归求解可得 $h_\omega(t) \ge 0$。**数值上**（第 6 章案例：$h_\omega=21,\ \dot{h}_\omega=-1070.7$）：$\psi_1(0) = -1070.7 + 210 = -860.7 < 0$！
+>
+> ⚠️ **这揭示了一个关键点**：$\psi_1(0) < 0$ 意味着**初始不满足 HOCBF 条件**——系统已经"太快了"。此时需要：
+> 1. 在 $u_q$ 上限约束下尽快把 $\psi_1$ 拉回非负（定理保证指数收敛，但需要控制权限足够）；
+> 2. 或降低参考速度，使初始状态落在可行域内。
+>
+> **工程启示**：HOCBF 的安全性证明**依赖于初始可行性**（$h, \psi_1, \dots, \psi_{r-1}$ 在 $t=0$ 满足约束）。这对应第 5 章参数选择中"特征根 $-5$ 到 $-20$"的要求——**参数决定收敛快慢，而收敛快慢决定能否在越界前把状态拉回**。
+
+---
+
+### 8.7 证明脉络小结
+
+> **统一证明范式**：
+>
+> 1. **写全导数** $\dot{V}$ 或 $\dot{h}$ → 用李导数展开 $L_f + L_G u$。
+> 2. **施加控制器/QP 约束** → 得到微分不等式 $\dot{V} \le -\gamma V + \delta$ 或 $\dot{h} \ge -\alpha(h)$。
+> 3. **调用比较引理** → 解出 $V(t), h(t)$ 的显式下界。
+> 4. **下界非负** → 不变性（安全）或收敛（稳定）。
+
+> 这一范式的力量在于：**它把"控制器设计"完全归约为"构造满足不等式的 $u$"**——而 QP 正是求解这个不等式的最优化机器。理解这层联系，也就理解了为什么 CLF-CBF-QP 能成为安全关键控制（机器人、自动驾驶、PMSM 弱磁限速）的通用语言。
 
 ---
 
